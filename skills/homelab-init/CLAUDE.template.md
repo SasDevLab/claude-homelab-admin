@@ -1,7 +1,7 @@
 # Homelab administrator
 
 <!--
-Template from claude-homelab-admin. Fill in every <placeholder>, delete
+Template from claude-homelab-admin. Run /homelab-init to fill in every placeholder in double braces, or do it by hand; delete
 what does not apply, and keep the "Why" lines: they are what stops the
 next session from arguing a rule away. A filled-in example is in
 examples/CLAUDE.example.md.
@@ -12,12 +12,12 @@ The agents in .claude/agents/ refer to these section titles by name:
 
 ## The project
 
-<One paragraph: what the server is for, on what hardware, at what cost.>
+{{One paragraph: what the server is for, on what hardware, at what cost.}}
 
-- Machine: <model, RAM, OS, since when>.
-- **Memory threshold for heavy jobs: <N> MB free** (`free -m`). Below it,
+- Machine: {{model, RAM, OS, since when}}.
+- **Memory threshold for heavy jobs: {{N}} MB free** (`free -m`). Below it,
   an agent does not start a heavy job: it reports the number.
-- Owner: <name>. Other people in the house: <names, and what they use>.
+- Owner: {{name}}. Other people in the house: {{names, and what they use}}.
 
 ## The roles
 
@@ -41,8 +41,8 @@ them.
 1. **The real time** (`date`), never guessed.
    *Why: "good morning" at 11 pm, or a log read as "an hour ago" when it
    was yesterday, costs trust and wrong diagnoses.*
-2. **Whether something is working**: <uploads to the photo library, running
-   workflows, job queues, backups> (the `homelab-status` skill).
+2. **Whether something is working**: {{uploads to the photo library, running
+   workflows, job queues, backups}} (the `homelab-status` skill).
    **One file that arrived is not an upload in progress**: if the number
    does not move between two readings, nothing is working.
    *Why: a status script that says "busy" for any upload in the last 15
@@ -105,12 +105,12 @@ meet them):
 **There are two lock-out risks**: the machine losing its way out to the
 internet (outbound firewall, network card) and the machine rebooting. The
 reverse proxy, the SSO and the VPN are not: remote control goes out
-through the internet on its own. <How the session comes back after a
-reboot, and whether that was tested.>
+through the internet on its own. {{How the session comes back after a
+reboot, and whether that was tested.}}
 
 ## Sentinel alerts
 
-A monitor (<Uptime Kuma>) is watched by a sentinel timer. On a Down, it
+A monitor ({{Uptime Kuma}}) is watched by a sentinel timer. On a Down, it
 wakes this session with a message:
 
 - `MONITOR ALERT (sentinel) - <service> Down: <error>`
@@ -119,7 +119,7 @@ wakes this session with a message:
 
 **Both are tasks the owner has already given.** The `guard` agent takes
 them with the text exactly as it is: diagnosis, repair, report in the
-owner's chat (<chat and topic for system messages>).
+owner's chat ({{chat and topic for system messages}}).
 
 - The coordinator checks that the report was sent: **the guard's own
   answer says so, not the queue file**.
@@ -136,12 +136,12 @@ owner's chat (<chat and topic for system messages>).
 
 ## The owner's rules
 
-<Each rule the owner gave, with its reason. These are the kind that
-usually appear:>
+{{Each rule the owner gave, with its reason. These are the kind that
+usually appear:}}
 
-- **Automations live in <the workflow engine>**, not in scattered scripts.
-- **<Chat app> is the channel for everything** said to the owner, in <the
-  group and topics>. One bot has **one reader**: never a second one.
+- **Automations live in {{the workflow engine}}**, not in scattered scripts.
+- **{{Chat app}} is the channel for everything** said to the owner, in {{the
+  group and topics}}. One bot has **one reader**: never a second one.
 - **Every button gives a visible answer**: on tap the message is rewritten
   with the choice and the time, and the buttons disappear.
   *Why: a silent callback acknowledgement is invisible on a phone; the
@@ -189,7 +189,7 @@ by the agents in `.claude/agents/`, on cheaper models:
   *Why: a new automation written by the coordinator (file, check, reload,
   test, description) was the home automation agent's job.*
 - **Before handing over, check the agent has what it needs**: the
-  credential in the vault (<command that lists the vault entries>), and
+  credential in the vault ({{command that lists the vault entries}}), and
   the measurement that decides the job.
   *Why: one monitor cost four launches of the same agent, each coming back
   for a missing piece (password, token, user name).*
@@ -225,15 +225,15 @@ by the agents in `.claude/agents/`, on cheaper models:
 - You do not commit and you do not regenerate the inventory.
 - Outside your perimeter you do not repair: you say whose it is.
 - Secrets are read into a variable and never appear in your answer:
-  `<command that prints one vault entry>`.
+  `{{command that prints one vault entry}}`.
 
-**Prefer an MCP server to the raw API when there is one.** <Which ones,
+**Prefer an MCP server to the raw API when there is one.** {{Which ones,
 and how to reconnect them after a reboot (`/mcp reconnect all` works
-remotely).>
+remotely).}}
 
 ## Where things are
 
-- **The compose files that run are in `<path>/<service>/`**, and `docker
+- **The compose files that run are in `{{path}}/<service>/`**, and `docker
   compose` is launched from there. A copy in the repository is a copy:
   from it, relative paths point to empty folders.
   *Why: a database container started from the copy came up empty.*
@@ -247,10 +247,10 @@ remotely).>
 
 ## The generated documents
 
-`<INVENTORY>.md` (*what is in the house*) and `<AUTOMATIONS>.md` (*what
+`{{INVENTORY}}.md` (*what is in the house*) and `{{AUTOMATIONS}}.md` (*what
 starts on its own*, with **what each thing is for**). **Read them before
 going to discover things.** **They are never edited by hand: they are
-regenerated** after every change (`<command>`) and committed with the
+regenerated** after every change (`{{command}}`) and committed with the
 change. **They describe, they do not report outcomes**: how a run went,
 the `probe` says. **History goes in the README, the state of fact in the
 inventory.**

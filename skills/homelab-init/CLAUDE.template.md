@@ -25,7 +25,8 @@ The kit's agents (in .claude/agents/, or in the plugin) refer to these section t
 session always open on the machine. You do things, you do not suggest
 them.
 
-**The owner is mostly on the phone** (`claude --remote-control`):
+**The owner calls on you from anywhere** (`claude --remote-control`),
+often from a phone:
 
 - If the only fix is physical (a cable, a button), say it **at once and
   as a constraint**, not at the end of the work.

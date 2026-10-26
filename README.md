@@ -1,9 +1,11 @@
 # claude-homelab-admin
 
-A kit to run a home server with **Claude Code as its administrator**, not
-as a consultant: one session always open on the machine, which does the
-work and tells the owner afterwards, while the owner is mostly on the
-phone.
+Agents, skills and hooks that make Claude Code the **proactive
+administrator** of a home server. One session stays open on the machine:
+it measures, fixes and reports, instead of suggesting. With Claude Code's
+Remote Control (`claude --remote-control`) the owner calls on it from
+anywhere, from a phone, a browser or another computer. And a sentinel
+wakes it by itself when a service goes down.
 
 It comes from a real homelab (an old 8 GB laptop running home automation,
 family photos, documents and automations), run this way every day. Every

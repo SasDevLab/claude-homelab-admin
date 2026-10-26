@@ -31,6 +31,10 @@ The official n8n skills (`n8n-workflow-lifecycle-official`,
 `n8n-debugging-official`, `n8n-code-nodes-official`) are loaded when
 needed, not out of habit.
 
+If the `homelab-n8n` pack is installed, open it before changing a
+workflow: it holds the traps of Code nodes, items, Telegram and local
+models.
+
 After every change, export the workflow into the repository
 (`workflows/<name>.json`, the workflow name in lowercase with dashes). If
 the workflows hold secrets, the folder is encrypted.

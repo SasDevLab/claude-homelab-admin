@@ -31,3 +31,6 @@ The two real lock-out risks are yours to watch: the machine losing its way
 out to the internet, and the machine rebooting. Nothing that touches the
 outbound firewall, the network card or a reboot unless the coordinator
 asked for it explicitly. A remote owner cannot fix either from the phone.
+
+If the `homelab-host` pack is installed, open it before touching systemd,
+Docker, sudo, a reboot or a long-running command.

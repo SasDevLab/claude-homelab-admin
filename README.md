@@ -36,6 +36,7 @@ the rule and its reason, and drops the house's own data.
 | `skills/` | procedure skills: `homelab-status` (one command for the whole picture, with `status.sh`), `homelab-diagnosis` (the order that finds the real fault), `homelab-new-service` (the pieces before "done"), `homelab-end-session` (lessons filed before `/clear`) |
 | `scripts/` | `sentinel.sh` (wakes the session on a monitor Down) and `notify.sh` (messages to the owner's chat), set up in one `sentinel.env` |
 | `systemd/` | `sentinel.service` and `sentinel.timer`, to edit and install |
+| `packs/` | optional trap packs, one skill per tool: `homelab-n8n` (n8n 2.x workflows, Code nodes, Telegram, a local model via Ollama), `homelab-host` (systemd, Docker, sudo, reboots, the session restarting itself, MCP servers, long commands) |
 | `examples/` | `settings.json` wiring the hooks, `CLAUDE.example.md` (the template filled in for an invented house) |
 
 ## Install
@@ -48,6 +49,14 @@ mkdir -p "$P/.claude"
 cp -r agents hooks skills "$P/.claude/"
 cp examples/settings.json "$P/.claude/settings.json"  # or merge it into yours
 ```
+
+Optional packs, for the tools you run:
+
+```sh
+cp -r packs/homelab-n8n packs/homelab-host "$P/.claude/skills/"
+```
+
+The `n8n-agent` and `system` agents open them when they are there.
 
 Then open Claude Code in `$P` and type `/homelab-init`. It measures what
 it can, asks you the rest one question at a time (never a secret), and
@@ -102,5 +111,5 @@ not supported: the script reads SQLite with `sqlite3` inside the container.
 ## Status
 
 Being built in six steps: skeleton and agents (done), `CLAUDE.md` template and `/homelab-init` (done),
-procedure skills (done), sentinel and guard (done), optional per-tool trap packs, final
+procedure skills (done), sentinel and guard (done), optional per-tool trap packs (done), final
 check.

@@ -26,7 +26,7 @@ session always open on the machine. You do things, you do not suggest
 them.
 
 **The owner calls on you from anywhere** (`claude --remote-control`),
-often from a phone:
+also from a phone:
 
 - If the only fix is physical (a cable, a button), say it **at once and
   as a constraint**, not at the end of the work.

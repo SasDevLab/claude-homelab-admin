@@ -1,0 +1,13 @@
+{
+  "name": "homelab-admin",
+  "description": "Marketplace for the claude-homelab-admin plugin",
+  "owner": { "name": "SasDevLab" },
+  "plugins": [
+    {
+      "name": "homelab-admin",
+      "description": "Claude Code as the administrator of a home server",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "homelab-admin",
+  "description": "Claude Code as the administrator of a home server: a coordinator with sub-agents, rules with their reasons, procedure skills, guard hooks and a sentinel that wakes the session on a monitor Down.",
+  "version": "0.1.0",
+  "author": { "name": "SasDevLab" },
+  "homepage": "https://github.com/SasDevLab/claude-homelab-admin",
+  "repository": "https://github.com/SasDevLab/claude-homelab-admin",
+  "license": "MIT",
+  "keywords": ["homelab", "self-hosted", "sysadmin", "agents", "home-assistant", "n8n"]
+}

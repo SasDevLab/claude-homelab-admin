@@ -5,7 +5,7 @@ Template from claude-homelab-admin. Run /homelab-init to fill in every placehold
 what does not apply, and keep the "Why" lines: they are what stops the
 next session from arguing a rule away. A filled-in example is in
 examples/CLAUDE.example.md.
-The agents in .claude/agents/ refer to these section titles by name:
+The kit's agents (in .claude/agents/, or in the plugin) refer to these section titles by name:
 "The roles", "When to act and when to ask", "Sentinel alerts",
 "Sub-agents", "How to work". Rename them in both places or not at all.
 -->
@@ -170,7 +170,8 @@ usually appear:}}
 
 The main session **coordinates**: the plan, the dialogue with the owner,
 irreversible decisions, the generated documents, commits. The work is done
-by the agents in `.claude/agents/`, on cheaper models:
+by the kit's agents (in `.claude/agents/`, or `homelab-admin:<name>` when
+installed as a plugin), on cheaper models:
 
 | agent | model | what is theirs |
 |---|---|---|

@@ -41,7 +41,17 @@ the rule and its reason, and drops the house's own data.
 
 ## Install
 
-From this folder, copy into your homelab project:
+As a Claude Code plugin (2.1.275 or later), from your homelab project:
+
+```
+/plugin install homelab-admin --marketplace SasDevLab/claude-homelab-admin
+```
+
+This brings the agents (`homelab-admin:guard`, ...), the skills
+(`/homelab-admin:homelab-init`, ...) and the hooks. To try it without
+installing: `claude --plugin-dir <kit folder>`.
+
+Or copy it into the project, if you want to edit the agents in place:
 
 ```sh
 P=~/my-homelab                                     # your project folder
@@ -50,21 +60,24 @@ cp -r agents hooks skills "$P/.claude/"
 cp examples/settings.json "$P/.claude/settings.json"  # or merge it into yours
 ```
 
-Optional packs, for the tools you run:
+The optional packs are copied by hand either way, for the tools you run:
 
 ```sh
+mkdir -p "$P/.claude/skills"
 cp -r packs/homelab-n8n packs/homelab-host "$P/.claude/skills/"
 ```
 
 The `n8n-agent` and `system` agents open them when they are there.
 
-Then open Claude Code in `$P` and type `/homelab-init`. It measures what
-it can, asks you the rest one question at a time (never a secret), and
-shows the result before saving. Run it again to fill what you skipped.
+Then open Claude Code in `$P` and run `/homelab-init`
+(`/homelab-admin:homelab-init` from the plugin). It measures what it can,
+asks you the rest one question at a time (never a secret), and shows the
+result before saving. Run it again to fill what you skipped.
 
-Then edit the agents: the services named in them (Immich, Home Assistant,
-n8n, Authelia, Caddy, Uptime Kuma) are an example stack. Drop the agents
-you do not need and adapt the perimeters to yours.
+Then look at the agents: the services named in them (Immich, Home
+Assistant, n8n, Authelia, Caddy, Uptime Kuma) are an example stack. With
+the copy, drop the agents you do not need and adapt the perimeters to
+yours; with the plugin, your `CLAUDE.md` says which ones you use.
 
 Hook self-test: `python3 hooks/block-pkill-f.py --test`.
 
@@ -108,8 +121,6 @@ sudo systemctl daemon-reload && sudo systemctl enable --now sentinel.timer
 State, queue and log go to `logs/` next to `scripts/`. Kuma on MariaDB is
 not supported: the script reads SQLite with `sqlite3` inside the container.
 
-## Status
+## License
 
-Being built in six steps: skeleton and agents (done), `CLAUDE.md` template and `/homelab-init` (done),
-procedure skills (done), sentinel and guard (done), optional per-tool trap packs (done), final
-check.
+MIT, see `LICENSE`.

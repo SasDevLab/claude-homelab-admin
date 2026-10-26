@@ -33,7 +33,7 @@ the rule and its reason, and drops the house's own data.
 | `agents/` | 8 sub-agents: `probe`, `scout` (read-only), `system`, `guard`, `infra-security`, `n8n-agent`, `hass-agent`, `media-storage` |
 | `hooks/` | 3 PreToolUse hooks: `block-pkill-f.py` (a `pkill -f` that would kill its own shell), `delegate-reminder.sh` (the coordinator doing an agent's job), `model-weight-reminder.sh` (a model too heavy for the host) |
 | `skills/homelab-init/` | `/homelab-init`: writes your `CLAUDE.md` (the coordinator's rules, each with its reason) from `CLAUDE.template.md`, measuring the machine and asking you the rest |
-| `skills/` | procedure skills: status, diagnosis, new service, end of session (in progress) |
+| `skills/` | procedure skills: `homelab-status` (one command for the whole picture, with `status.sh`), `homelab-diagnosis` (the order that finds the real fault), `homelab-new-service` (the pieces before "done"), `homelab-end-session` (lessons filed before `/clear`) |
 | `scripts/` | sentinel and notifications (in progress) |
 | `examples/` | `settings.json` wiring the hooks, `CLAUDE.example.md` (the template filled in for an invented house) |
 
@@ -61,5 +61,5 @@ Hook self-test: `python3 hooks/block-pkill-f.py --test`.
 ## Status
 
 Being built in six steps: skeleton and agents (done), `CLAUDE.md` template and `/homelab-init` (done),
-procedure skills, sentinel and guard, optional per-tool trap packs, final
+procedure skills (done), sentinel and guard, optional per-tool trap packs, final
 check.

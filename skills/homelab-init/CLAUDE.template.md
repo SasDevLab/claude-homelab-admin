@@ -328,7 +328,7 @@ not a check, and if the tool is wrong you fix the tool before concluding.
 - **A report does not end with things left halfway**: "I did not look
   into it" is work to do before writing.
 - **A long session with several jobs in it is closed halfway**: one job
-  done and committed, end-of-session skill, new session.
+  done and committed, `homelab-end-session` skill, new session.
   *Why: one session with four jobs grew a multi-MB transcript and the
   process died without a trace.*
 - In commit messages: what was measured, and which hypothesis was

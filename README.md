@@ -34,7 +34,8 @@ the rule and its reason, and drops the house's own data.
 | `hooks/` | 3 PreToolUse hooks: `block-pkill-f.py` (a `pkill -f` that would kill its own shell), `delegate-reminder.sh` (the coordinator doing an agent's job), `model-weight-reminder.sh` (a model too heavy for the host) |
 | `skills/homelab-init/` | `/homelab-init`: writes your `CLAUDE.md` (the coordinator's rules, each with its reason) from `CLAUDE.template.md`, measuring the machine and asking you the rest |
 | `skills/` | procedure skills: `homelab-status` (one command for the whole picture, with `status.sh`), `homelab-diagnosis` (the order that finds the real fault), `homelab-new-service` (the pieces before "done"), `homelab-end-session` (lessons filed before `/clear`) |
-| `scripts/` | sentinel and notifications (in progress) |
+| `scripts/` | `sentinel.sh` (wakes the session on a monitor Down) and `notify.sh` (messages to the owner's chat), set up in one `sentinel.env` |
+| `systemd/` | `sentinel.service` and `sentinel.timer`, to edit and install |
 | `examples/` | `settings.json` wiring the hooks, `CLAUDE.example.md` (the template filled in for an invented house) |
 
 ## Install
@@ -58,8 +59,48 @@ you do not need and adapt the perimeters to yours.
 
 Hook self-test: `python3 hooks/block-pkill-f.py --test`.
 
+## The sentinel
+
+The session cannot watch anything while it waits for you. A timer can:
+
+```
+Uptime Kuma Down ──> sentinel.sh (every minute) ──> claude -p: ListAgents + SendMessage
+script alert ──> notify.sh ──> queue ──┘                      │
+                                                              v
+        owner's chat <── notify.sh <── guard agent <── your session
+```
+
+- `sentinel.sh` reads Kuma's SQLite database (read only) for new Downs,
+  and the queue that `notify.sh` fills for messages on the system topic.
+  A throwaway `claude -p` (haiku, a few seconds) delivers them to the
+  newest local session whose name starts with `SESSION_PREFIX`, as
+  `MONITOR ALERT (sentinel) - <service> Down: <error>` or
+  `SYSTEM ALERT (sentinel): <text>`. Your `CLAUDE.md` tells the session to
+  hand them to `guard`.
+- No session answers? It tells the chat that nobody is acting on it.
+- Your own scripts alert with `notify.sh <topic> "<text>"`, or
+  `. notify.sh` and `notify <topic> "<text>"`. Only the system topic wakes
+  the session.
+
+Setup (as the user who runs Claude Code):
+
+```sh
+cd "$P/.claude"
+cp -r <kit>/scripts <kit>/systemd .
+cp scripts/sentinel.env.example scripts/sentinel.env   # fill it in
+NOTIFY=0 scripts/notify.sh 4 "test"           # dry run: prints, sends nothing
+scripts/sentinel.sh --dry-run --from 1        # prints every past Down it would send
+scripts/sentinel.sh                           # first real run: saves where it starts
+# edit User= and ExecStart= in systemd/sentinel.service, then:
+sudo cp systemd/sentinel.* /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sentinel.timer
+```
+
+State, queue and log go to `logs/` next to `scripts/`. Kuma on MariaDB is
+not supported: the script reads SQLite with `sqlite3` inside the container.
+
 ## Status
 
 Being built in six steps: skeleton and agents (done), `CLAUDE.md` template and `/homelab-init` (done),
-procedure skills (done), sentinel and guard, optional per-tool trap packs, final
+procedure skills (done), sentinel and guard (done), optional per-tool trap packs, final
 check.

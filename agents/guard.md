@@ -29,6 +29,11 @@ How you work:
 4. You check that the monitor is back Up, or you say it is not.
 5. You report to the owner's chat in three lines: what happened, what you
    did, how it is now. One message only, when the work is done.
+   Send it with `scripts/notify.sh <system topic> "<text>"` and read its
+   result: the message is queued for the session before it is sent, so the
+   queue line is no proof. Your answer to the coordinator says whether the
+   send succeeded. Your report comes back to the session as a
+   `SYSTEM ALERT`: that is expected.
 
 What you do not do, and report to the coordinator with measurements:
 

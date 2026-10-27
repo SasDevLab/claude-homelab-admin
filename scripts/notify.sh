@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# Send a message to the owner's chat: Telegram, or any Apprise channel. Use it as a command or source it:
-#   notify.sh <topic> "<text>"        topic: a message_thread_id, or "" for none
+# Send a message to the owner: Telegram, ntfy, Discord, Slack, email, or any Apprise channel.
+# Use it as a command or source it:
+#   notify.sh <topic> "<text>"        topic: a Telegram message_thread_id, or "" for none
 #   . notify.sh; notify <topic> "<text>"
 #
 # A message on SYSTEM_TOPIC is also queued for sentinel.sh, which wakes the
 # Claude Code session with it as "SYSTEM ALERT (sentinel): <text>". A script
-# that alerts without this file does not wake anyone.
+# that alerts without this file does not wake anyone. Only Telegram shows the
+# topic; on the other channels it just decides the queue.
 #
 # NOTIFY=0 prints the message instead of sending it (dry run): a script that
 # notifies sends real messages even while you test it.
 #
 # Settings: scripts/sentinel.env (see sentinel.env.example), or SENTINEL_ENV.
+# Secrets come from *_CMD commands and reach curl on stdin, never on its
+# command line: ps shows arguments to every user.
 
 _kit_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=/dev/null
@@ -18,33 +22,84 @@ _kit_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ALERT_QUEUE=${ALERT_QUEUE:-$_kit_dir/logs/alert-queue.txt}
 type log >/dev/null 2>&1 || log() { echo "$(date '+%F %T')  $*" >&2; }
 
+# Run a *_CMD setting and print its first line.
+_secret() { eval "$1" 2>/dev/null | head -n1 | tr -d '\r'; }
+
+# A JSON string, quotes included. Other control characters are dropped.
+_json() {
+  local s=$1
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\n'/\\n}; s=${s//$'\t'/\\t}
+  printf '"%s"' "$(printf '%s' "$s" | tr -d '\000-\010\013-\037')"
+}
+
+# A value for a curl config file (curl -K), quotes included.
+_cfg() { local s=${1//\\/\\\\}; printf '"%s"' "${s//\"/\\\"}"; }
+
+# POST to a secret URL. Prints the HTTP code, 000 when there is no answer.
+# Check the code, not curl's exit: a refused token still exits 0.
+_post() {
+  local url=$1; shift
+  printf 'url = %s\n' "$(_cfg "$url")" | curl -s -m 20 -o /dev/null -w '%{http_code}' -K - "$@" || true
+}
+
 notify() {
-  local topic=$1 text=$2 token code
-  if [ "${NOTIFY:-1}" = 0 ]; then echo "[dry run] topic=${topic:-none}: $text"; return 0; fi
-  # Queued before sending, so the session hears about it even if Telegram fails.
-  # Why it matters: the queue line is no proof the chat got it; the send result is.
+  local topic=$1 text=$2 via=${NOTIFY_VIA:-telegram} secret code
+  if [ "${NOTIFY:-1}" = 0 ]; then echo "[dry run] via=$via topic=${topic:-none}: $text"; return 0; fi
+  # Queued before sending, so the session hears about it even if the send fails.
+  # Why it matters: the queue line is no proof the owner got it; the send result is.
   if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ]; then
     mkdir -p "$(dirname "$ALERT_QUEUE")" && echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"
   fi
-  if [ -n "$NOTIFY_URL_CMD" ]; then
-    # Apprise (ntfy, Slack, Discord, Matrix, email...). It has no topics: the topic only picks the queue above.
-    local url
-    url=$(eval "$NOTIFY_URL_CMD" 2>/dev/null | tr '\n\r' '  ')
-    [ -n "${url// }" ] || { log "notify: not sent, notify URL not readable"; return 1; }
-    # The URL goes in the environment, not on the command line: ps shows arguments to every user.
-    APPRISE_URLS=$url timeout 60 "${APPRISE_BIN:-apprise}" -b "$text" >/dev/null 2>&1 \
-      || { log "notify: NOT delivered (Apprise failed)"; return 1; }
-    return 0
-  fi
-  token=$(eval "$TELEGRAM_TOKEN_CMD" 2>/dev/null | tr -d '\n\r')
-  [ -n "$token" ] || { log "notify: not sent, token not readable"; return 1; }
-  # Check the HTTP code, not curl's exit: with a revoked token Telegram answers 401 and curl exits 0.
-  code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' \
-    --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-    ${topic:+--data-urlencode "message_thread_id=$topic"} \
-    --data-urlencode "text=$text" \
-    "https://api.telegram.org/bot$token/sendMessage") || code=000
-  [ "$code" = 200 ] || { log "notify: NOT delivered (Telegram answered $code)"; return 1; }
+  case $via in
+    telegram) secret=$(_secret "$TELEGRAM_TOKEN_CMD") ;;
+    ntfy)     secret=$(_secret "$NTFY_URL_CMD") ;;
+    discord)  secret=$(_secret "$DISCORD_WEBHOOK_CMD") ;;
+    slack)    secret=$(_secret "$SLACK_WEBHOOK_CMD") ;;
+    email)    if [ -n "$SMTP_PASS_CMD" ]; then secret=$(_secret "$SMTP_PASS_CMD"); else secret=none; fi ;;
+    apprise)  secret=$(eval "$APPRISE_URL_CMD" 2>/dev/null | tr '\n\r' '  ') ;;
+    *) log "notify: not sent, unknown NOTIFY_VIA=$via"; return 1 ;;
+  esac
+  [ -n "${secret// }" ] || { log "notify: not sent, $via secret not readable"; return 1; }
+
+  case $via in
+    telegram)
+      code=$(_post "https://api.telegram.org/bot$secret/sendMessage" \
+        --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+        ${topic:+--data-urlencode "message_thread_id=$topic"} \
+        --data-urlencode "text=$text") ;;
+    ntfy)
+      # NTFY_TOKEN_CMD only for a server with access control; the header comes from fd 3.
+      if [ -n "$NTFY_TOKEN_CMD" ]; then
+        code=$(_post "$secret" -H @/dev/fd/3 --data-binary "$text" \
+          3< <(echo "Authorization: Bearer $(_secret "$NTFY_TOKEN_CMD")"))
+      else
+        code=$(_post "$secret" --data-binary "$text")
+      fi ;;
+    discord)
+      # Discord takes at most 2000 characters.
+      code=$(_post "$secret" -H 'Content-Type: application/json' \
+        --data-binary "{\"content\":$(_json "${text:0:2000}")}") ;;
+    slack)
+      code=$(_post "$secret" -H 'Content-Type: application/json' \
+        --data-binary "{\"text\":$(_json "$text")}") ;;
+    email)
+      local subject first=${text%%$'\n'*} tls=--ssl-reqd auth=
+      subject="${NOTIFY_SUBJECT:-homelab}: ${first:0:60}"
+      # A relay on this machine may speak plain SMTP; anything else must use TLS.
+      case $SMTP_URL in smtp://localhost*|smtp://127.0.0.1*) tls= ;; esac
+      # User and password come from fd 3.
+      [ "$secret" = none ] || auth="-K /dev/fd/3"
+      printf 'From: %s\nTo: %s\nSubject: =?UTF-8?B?%s?=\nDate: %s\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \
+        "$MAIL_FROM" "$MAIL_TO" "$(printf '%s' "$subject" | base64 -w0)" "$(LC_ALL=C date -R)" "$text" |
+        curl -s -m 30 --crlf $tls $auth --mail-from "$MAIL_FROM" --mail-rcpt "$MAIL_TO" -T - "$SMTP_URL" \
+          3< <([ "$secret" = none ] || printf 'user = %s\n' "$(_cfg "$SMTP_USER:$secret")") \
+        && code=200 || code="curl exit $?" ;;
+    apprise)
+      APPRISE_URLS=$secret timeout 60 "${APPRISE_BIN:-apprise}" -b "$text" >/dev/null 2>&1 && code=200 || code=failed ;;
+  esac
+  # Discord answers 204, the others 200.
+  case $code in 200|204) return 0 ;; esac
+  log "notify: NOT delivered ($via answered $code)"; return 1
 }
 
 # Run as a command, not sourced.

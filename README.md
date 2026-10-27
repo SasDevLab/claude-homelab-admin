@@ -35,6 +35,7 @@ the rule and its reason, and drops the house's own data.
 | `agents/` | 8 sub-agents: `probe`, `scout` (read-only), `system`, `guard`, `infra-security`, `n8n-agent`, `hass-agent`, `media-storage` |
 | `hooks/` | 3 PreToolUse hooks: `block-pkill-f.py` (a `pkill -f` that would kill its own shell), `delegate-reminder.sh` (the coordinator doing an agent's job), `model-weight-reminder.sh` (a model too heavy for the host) |
 | `skills/homelab-init/` | `/homelab-init`: writes your `CLAUDE.md` (the coordinator's rules, each with its reason) from `CLAUDE.template.md`, measuring the machine and asking you the rest |
+| `skills/homelab-notify/` | `/homelab-notify`: shows or switches where alerts go (Telegram, ntfy, Discord, Slack, email, Apprise), `/homelab-notify test` sends one |
 | `skills/` | procedure skills: `homelab-status` (one command for the whole picture, with `status.sh`), `homelab-diagnosis` (the order that finds the real fault), `homelab-new-service` (the pieces before "done"), `homelab-end-session` (lessons filed before `/clear`) |
 | `scripts/` | `sentinel.sh` (wakes the session on a monitor Down) and `notify.sh` (messages to the owner's chat), set up in one `sentinel.env` |
 | `systemd/` | `sentinel.service` and `sentinel.timer`, to edit and install |
@@ -111,7 +112,7 @@ Setup (as the user who runs Claude Code):
 ```sh
 cd "$P/.claude"
 cp -r <kit>/scripts <kit>/systemd .
-cp scripts/sentinel.env.example scripts/sentinel.env   # fill it in
+cp scripts/sentinel.env.example scripts/sentinel.env   # fill it in, or run /homelab-notify
 NOTIFY=0 scripts/notify.sh 4 "test"           # dry run: prints, sends nothing
 scripts/sentinel.sh --dry-run --from 1        # prints every past Down it would send
 scripts/sentinel.sh                           # first real run: saves where it starts

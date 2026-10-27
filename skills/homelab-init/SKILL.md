@@ -13,7 +13,7 @@ are written `{{like this}}`; the text inside says what goes there.
 Rules for the whole run:
 
 - **Read only, until the owner says "save".** No installs, no restarts,
-  no file written before step 5.
+  no file written before step 5 (step 6 asks again).
 - **Measure before asking.** A question comes with what you measured as
   the proposed answer: "I see 7.6 GB of RAM and Debian 13. Right?"
 - **One question per message**, in plain words. The owner is probably on a
@@ -61,7 +61,11 @@ In this order, skipping what step 2 already settled beyond doubt:
 1. What the server is for, in one sentence, and since when.
 2. The owner's name, and who else in the house uses what.
 3. The memory threshold: your proposal, yes or a number.
-4. Which chat, group and topic get the system messages.
+4. Where alerts go: the channel (Telegram, ntfy, Discord, Slack, email,
+   or another through Apprise), and for Telegram the group and topic.
+   Offer the six channels as the table in `../homelab-notify/SKILL.md`
+   step 2 does. Only the channel and where it lands go in `CLAUDE.md`;
+   the rest is step 6.
 5. The vault: the command that lists entries, the one that prints one.
    Run the listing once and report only how many entries it showed.
 6. How the session comes back after a reboot, and whether it was tested.
@@ -90,5 +94,14 @@ count of blanks still open. Save when they say so. Then check:
   `grep -c -E '^## (The roles|When to act and when to ask|Sentinel alerts|Sub-agents|How to work)$' CLAUDE.md`
   gives 5.
 
-End with one line: saved, how many blanks are left, and that running
-`/homelab-init` again fills only those.
+## 6. Alerts
+
+Set up the channel chosen in question 4 by following
+`../homelab-notify/SKILL.md` from its step 1, with that channel as the
+argument: it writes `sentinel.env` only after its own yes, and offers a
+test message. The owner may say "later": `/homelab-notify` does it any
+time.
+
+End with one line: saved, how many blanks are left, the alert channel
+(set up or not), and that running `/homelab-init` again fills only the
+blanks, `/homelab-notify` changes the channel.

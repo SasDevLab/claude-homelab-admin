@@ -13,6 +13,13 @@ import shlex
 import sys
 
 
+# Options that take a value as the next word (pkill/pgrep, killall).
+ARG_OPTS = {"-g", "-G", "-P", "-s", "-t", "-u", "-U", "-F", "--signal", "--pidfile",
+            "--ns", "--nslist", "--cgroup", "--euid", "--uid", "--group", "--pgroup",
+            "--session", "--terminal", "--parent", "--user", "-o", "-y",
+            "--older-than", "--younger-than"}
+
+
 def pattern(cmd):
     """The first text searched by pkill -f / killall -r without square brackets."""
     # Quote-aware split: a `;` inside a string does not separate commands.
@@ -42,9 +49,15 @@ def pattern(cmd):
         p = words[i]
         if p.rsplit("/", 1)[-1] not in ("pkill", "killall"):
             continue
-        rest = words[i + 1:]
-        flags = [r for r in rest if r.startswith("-")]
-        texts = [r for r in rest if not r.startswith("-")]
+        flags, texts, skip = [], [], False
+        for r in words[i + 1:]:
+            if skip:
+                skip = False  # the value of the option before it, not the pattern
+            elif r.startswith("-"):
+                flags.append(r)
+                skip = r in ARG_OPTS
+            else:
+                texts.append(r)
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
         regex = p.endswith("killall") and any(f in ("-r", "--regexp") for f in flags)
         if (full or regex) and texts and "[" not in texts[0]:
@@ -58,6 +71,9 @@ def test():
     assert pattern("ls; killall -r 'app.*'") == "app.*"
     assert pattern("pkill -f '[m]yapp'") is None
     assert pattern("pkill myapp") is None
+    assert pattern("pkill -u root -f '[m]yscript'") is None
+    assert pattern("pkill -u root -f myscript") == "myscript"
+    assert pattern("killall -u bob -r 'app.*'") == "app.*"
     assert pattern("git commit -m 'stop pkill -f myapp'") is None
     assert pattern("echo x | pkill --full myapp") == "myapp"
     print("ok")

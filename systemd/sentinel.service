@@ -6,4 +6,5 @@ Type=oneshot
 # The user who runs the Claude Code session, and where you copied the kit.
 User=YOUR_USER
 ExecStart=/home/YOUR_USER/my-homelab/.claude/scripts/sentinel.sh
-TimeoutStartSec=200
+# claude gets 180 s at most, the fallback send up to 60 s: room for both.
+TimeoutStartSec=300

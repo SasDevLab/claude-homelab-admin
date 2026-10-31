@@ -2,6 +2,7 @@
 # Send a message to the owner: Telegram, ntfy, Discord, Slack, email, or any Apprise channel.
 # Use it as a command or source it:
 #   notify.sh <topic> "<text>"        topic: a Telegram message_thread_id, or "" for none
+#   NOTIFY_NOQUEUE=1 notify.sh ...    on SYSTEM_TOPIC, send without waking the session
 #   . notify.sh; notify <topic> "<text>"
 #
 # A message on SYSTEM_TOPIC is also queued for sentinel.sh, which wakes the
@@ -47,7 +48,9 @@ notify() {
   if [ "${NOTIFY:-1}" = 0 ]; then echo "[dry run] via=$via topic=${topic:-none}: $text"; return 0; fi
   # Queued before sending, so the session hears about it even if the send fails.
   # Why it matters: the queue line is no proof the owner got it; the send result is.
-  if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ]; then
+  # NOTIFY_NOQUEUE=1 sends without queueing: for the guard's own report, which
+  # would otherwise come back to the session as a new alert.
+  if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ] && [ "${NOTIFY_NOQUEUE:-0}" != 1 ]; then
     mkdir -p "$(dirname "$ALERT_QUEUE")" && echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"
   fi
   case $via in
@@ -66,7 +69,7 @@ notify() {
       code=$(_post "https://api.telegram.org/bot$secret/sendMessage" \
         --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
         ${topic:+--data-urlencode "message_thread_id=$topic"} \
-        --data-urlencode "text=$text") ;;
+        --data-urlencode "text=${text:0:4096}") ;;   # Telegram takes at most 4096 characters
     ntfy)
       # NTFY_TOKEN_CMD only for a server with access control; the header comes from fd 3.
       if [ -n "$NTFY_TOKEN_CMD" ]; then

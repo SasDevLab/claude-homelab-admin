@@ -118,7 +118,9 @@ script alert ──> notify.sh ──> queue ──┘                      │
   `MONITOR ALERT (sentinel) - <service> Down: <error>` or
   `SYSTEM ALERT (sentinel): <text>`. Your `CLAUDE.md` tells the session to
   hand them to `guard`.
-- No session answers? It tells the chat that nobody is acting on it.
+- No session answers? It tells the chat that nobody is acting on it. If
+  that fails too, nothing is lost: the state stays and the alerts wait in
+  `logs/alert-queue.txt.backlog` for the next run (20 per run at most).
 - Your own scripts alert with `notify.sh <topic> "<text>"`, or
   `. notify.sh` and `notify <topic> "<text>"`. Only the system topic wakes
   the session.

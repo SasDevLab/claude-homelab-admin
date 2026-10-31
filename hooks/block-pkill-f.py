@@ -20,7 +20,11 @@ LONG_VALUE = {"--signal", "--pidfile", "--ns", "--nslist", "--cgroup", "--euid",
 # Commands that run the next word as a command, and their options that take a value.
 WRAPPERS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U"},
             "timeout": {"-s", "-k", "--signal", "--kill-after"},
-            "nice": {"-n"}, "env": {"-u", "-C", "-S"}, "nohup": set(), "exec": set()}
+            "nice": {"-n"}, "env": {"-u", "-C", "-S"}, "nohup": set(), "exec": set(),
+            "time": set(), "command": set(), "watch": {"-n", "-d"},
+            "xargs": {"-n", "-I", "-P", "-L", "-d", "-a", "-E", "-s"}}
+# Shell keywords a command can follow: `then pkill`, `do pkill`, `{ pkill`, `! pkill`.
+KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "{", "!"}
 
 
 def options(words):
@@ -35,7 +39,7 @@ def options(words):
             skip = "=" not in r and r in LONG_VALUE
         elif r.startswith("-") and len(r) > 1:
             letters = r[1:]
-            if re.fullmatch(r"[A-Z0-9]+", letters):  # a signal: -9, -TERM, -HUP
+            if re.fullmatch(r"[0-9]+|[A-Z][A-Z0-9]+", letters):  # a signal: -9, -TERM, -HUP (-U, -P are options)
                 flags.append(r)
                 continue
             kept = ""
@@ -55,7 +59,9 @@ def command_start(words):
     i = 0
     while i < len(words):
         w = words[i]
-        if w in WRAPPERS:
+        if w in KEYWORDS:
+            i += 1
+        elif w in WRAPPERS:
             takes, i = WRAPPERS[w], i + 1
             while i < len(words) and words[i].startswith("-"):
                 i += 2 if words[i] in takes else 1
@@ -100,7 +106,7 @@ def pattern(cmd):
 
 def bracketed(p):
     """p with its first letter or digit in brackets: same matches, never itself."""
-    m = re.search(r"[A-Za-z0-9]", p)
+    m = re.search(r"(?<!\\)[A-Za-z0-9]", p)
     return f"{p[:m.start()]}[{m.group()}]{p[m.end():]}" if m else None
 
 
@@ -127,6 +133,15 @@ def test():
     assert pattern("killall -r 'app.*'") is None
     assert bracketed("myapp") == "[m]yapp"
     assert bracketed(".*foo") == ".*[f]oo"
+    assert bracketed("\\bmyapp") == "\\b[m]yapp"
+    assert pattern("pkill -U root -f myapp") == "myapp"
+    assert pattern("pkill -P 1234 -f '[m]yapp'") is None
+    assert pattern("pkill -F /run/x.pid -f myapp") == "myapp"
+    assert pattern("if pgrep -f '[m]yapp'; then pkill -f myapp; fi") == "myapp"
+    assert pattern("for p in a; do pkill -f myapp; done") == "myapp"
+    assert pattern("{ pkill -f myapp; }") == "myapp"
+    assert pattern("time pkill -f myapp") == "myapp"
+    assert pattern("echo x | xargs -r pkill -f myapp") == "myapp"
     print("ok")
 
 

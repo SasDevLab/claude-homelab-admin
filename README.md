@@ -97,6 +97,10 @@ Then look at the agents: the services named in them (Immich, Home
 Assistant, n8n, Authelia, Caddy, Uptime Kuma) are an example stack. With
 the copy, drop the agents you do not need and adapt the perimeters to
 yours; with the plugin, your `CLAUDE.md` says which ones you use.
+`hass-agent` and `n8n-agent` work through MCP servers named
+`homeassistant` and `n8n`. A plugin's agents do not get MCP servers from
+their own files: add them to your project with `claude mcp add` under
+those names.
 
 Hook self-test: `python3 hooks/block-pkill-f.py --test`.
 
@@ -137,7 +141,7 @@ cd "$P/.claude"
 cp -r <kit>/scripts <kit>/systemd .
 cp scripts/sentinel.env.example scripts/sentinel.env   # fill it in, or run /homelab-notify
 NOTIFY=0 scripts/notify.sh 4 "test"           # dry run: prints, sends nothing
-scripts/sentinel.sh --dry-run --from 1        # prints every past Down it would send
+scripts/sentinel.sh --dry-run --from 1        # prints the first 20 past Downs it would send
 scripts/sentinel.sh                           # first real run: saves where it starts
 # edit User= and ExecStart= in systemd/sentinel.service, then:
 sudo cp systemd/sentinel.* /etc/systemd/system/

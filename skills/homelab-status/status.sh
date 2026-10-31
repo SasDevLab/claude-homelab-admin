@@ -59,7 +59,8 @@ while read -r use mnt; do
 done < <(df -P -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null | awk 'NR>1 {print $5, $6}')
 
 if command -v docker >/dev/null; then
-  if out=$(docker ps -a --format '{{.Names}}|{{.Status}}' 2>/dev/null); then
+  err=$(mktemp)
+  if out=$(docker ps -a --format '{{.Names}}|{{.Status}}' 2>"$err"); then
     up=$(grep -c '|Up' <<<"$out")
     echo "DOCKER   $up of $(grep -c . <<<"$out") containers up"
     while IFS='|' read -r name status; do
@@ -70,10 +71,14 @@ if command -v docker >/dev/null; then
         *) attention+=("container $name: $status") ;;
       esac
     done <<<"$out"
-  else
+  elif grep -qi 'permission denied' "$err"; then
     echo "DOCKER   not measured (no permission: run with sudo)"
     attention+=("containers not measured: run with sudo")
+  else
+    echo "DOCKER   not answering: $(head -c 120 "$err")"
+    attention+=("Docker not answering: $(head -c 120 "$err")")
   fi
+  rm -f "$err"
 fi
 
 while read -r unit _; do

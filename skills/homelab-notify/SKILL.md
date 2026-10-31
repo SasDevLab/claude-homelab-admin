@@ -63,7 +63,7 @@ relay (`ss -ltn` on 25 or 587), a Telegram bot already in the chat app.
 Then ask, one per message, only what is empty for that channel. The
 settings, as `sentinel.env.example` names them:
 
-- `telegram`: `TELEGRAM_CHAT_ID`, `SYSTEM_TOPIC` (empty without topics), `TELEGRAM_TOKEN_CMD`
+- `telegram`: `TELEGRAM_CHAT_ID`, `SYSTEM_TOPIC` (a word such as `system` without topics: empty would wake nothing), `TELEGRAM_TOKEN_CMD`
 - `ntfy`: `NTFY_URL_CMD`, and `NTFY_TOKEN_CMD` only for a server with access control.
   On `ntfy.sh` anyone who knows the topic reads it: say so.
 - `discord`: `DISCORD_WEBHOOK_CMD`

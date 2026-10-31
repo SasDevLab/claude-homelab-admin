@@ -44,14 +44,17 @@ _post() {
 }
 
 notify() {
-  local topic=$1 text=$2 via=${NOTIFY_VIA:-telegram} secret code
+  local topic=$1 text=$2 via=${NOTIFY_VIA:-telegram} secret code thread=
+  # Only a number is a Telegram topic; a word (SYSTEM_TOPIC=system) only marks what wakes the session.
+  [[ $topic =~ ^[0-9]+$ ]] && thread=$topic
   if [ "${NOTIFY:-1}" = 0 ]; then echo "[dry run] via=$via topic=${topic:-none}: $text"; return 0; fi
   # Queued before sending, so the session hears about it even if the send fails.
   # Why it matters: the queue line is no proof the owner got it; the send result is.
   # NOTIFY_NOQUEUE=1 sends without queueing: for the guard's own report, which
   # would otherwise come back to the session as a new alert.
   if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ] && [ "${NOTIFY_NOQUEUE:-0}" != 1 ] && [ -n "$text" ]; then
-    mkdir -p "$(dirname "$ALERT_QUEUE")" && echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"
+    mkdir -p "$(dirname "$ALERT_QUEUE")" &&
+      { flock 9; echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"; } 9>>"$ALERT_QUEUE.lock"
   fi
   case $via in
     telegram) secret=$(_secret "$TELEGRAM_TOKEN_CMD") ;;
@@ -68,7 +71,7 @@ notify() {
     telegram)
       code=$(_post "https://api.telegram.org/bot$secret/sendMessage" \
         --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-        ${topic:+--data-urlencode "message_thread_id=$topic"} \
+        ${thread:+--data-urlencode "message_thread_id=$thread"} \
         --data-urlencode "text=${text:0:4096}") ;;   # Telegram takes at most 4096 characters
     ntfy)
       # NTFY_TOKEN_CMD only for a server with access control; the header comes from fd 3.

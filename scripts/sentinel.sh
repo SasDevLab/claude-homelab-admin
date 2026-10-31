@@ -49,6 +49,8 @@ case "$max" in
   ''|*[!0-9]*) log "Kuma did not answer: its Downs wait, the queue goes on" ;;
   *)
     if [ "$id" -lt 0 ]; then id=$max; save "$max"; fi   # first run: Downs from now on; the queue still goes out
+    # Kuma's database recreated or restored: its ids start again below the state.
+    if [ "$id" -gt "$max" ]; then log "state $id ahead of Kuma ($max): Kuma database reset, starting from $max"; id=$max; save "$max"; fi
     if rows=$(k "select h.id, m.name, replace(replace(replace(replace(h.msg, char(13), ' '), char(10), ' '), char(9), ' '), char(31), ' '), h.time
       from heartbeat h join monitor m on m.id = h.monitor_id
       where h.important = 1 and h.status = 0 and h.id > $id and h.id <= $max order by h.id limit $BATCH" 2>/dev/null); then
@@ -66,8 +68,11 @@ esac
 queue=$ALERT_QUEUE; backlog=$queue.backlog; fails=$kit/logs/sentinel-fails
 if [ "$dry" = 1 ]; then taken=$(cat "$backlog" "$queue" 2>/dev/null | head -n "$BATCH")
 else
-  [ -f "$queue.moving" ] && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"   # a run killed mid-move
-  mv "$queue" "$queue.moving" 2>/dev/null && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"
+  {
+    flock 9   # the lock notify.sh appends under: no line written while the queue moves
+    [ -f "$queue.moving" ] && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"   # a run killed mid-move
+    mv "$queue" "$queue.moving" 2>/dev/null && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"
+  } 9>>"$queue.lock"
   taken=$(head -n "$BATCH" "$backlog" 2>/dev/null)
 fi
 n_taken=0; [ -n "$taken" ] && n_taken=$(printf '%s\n' "$taken" | wc -l)
@@ -115,9 +120,9 @@ result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"
 [ -s "$out.err" ] && log "claude stderr: $(head -c 300 "$out.err" | tr '\n' ' ')"
 rm -f "$out" "$out.err"
 
-case "$result" in
-  " SENT "*) delivered ;;   # the answer starts with SENT: "UNSENT" or "not SENT" is no delivery
-  *)
+# The answer starts with SENT (spaces or markdown before it are fine): "UNSENT" or "not SENT" is no delivery.
+if [[ $result =~ ^[^A-Za-z]*SENT([^A-Za-z]|$) ]]; then delivered
+else
     # Not on SYSTEM_TOPIC through notify(): that would queue it again and loop.
     st=$SYSTEM_TOPIC
     if SYSTEM_TOPIC="" notify "$st" "Sentinel: $summary. No Claude session reachable: nobody is acting on it."
@@ -127,6 +132,6 @@ case "$result" in
       n=$(( $(cat "$fails" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$fails"
       result+=" [chat FAILED, try $n of $MAX_FAILS]"
       if [ "$n" -ge "$MAX_FAILS" ]; then delivered; result+=" [DROPPED after $MAX_FAILS runs]"; fi
-    fi ;;
-esac
+    fi
+fi
 log "$summary -> $result"

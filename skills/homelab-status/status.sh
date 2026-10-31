@@ -38,8 +38,8 @@ echo "TIME     $(date '+%a %d %b %Y %H:%M:%S %Z')   up since $(uptime -s)"
 echo "BUSY"
 busy; [ $? -eq 0 ] && echo "  nothing is working"
 
-read -r _ mem_total _ _ _ _ mem_avail < <(free -m | awk '/^Mem:/')
-read -r _ swap_total swap_used _ < <(free -m | awk '/^Swap:/')
+read -r _ mem_total _ _ _ _ mem_avail < <(LC_ALL=C free -m | awk '/^Mem:/')
+read -r _ swap_total swap_used _ < <(LC_ALL=C free -m | awk '/^Swap:/')
 echo "MEMORY   ${mem_avail} MB available of ${mem_total}, swap ${swap_used}/${swap_total} MB"
 # Half-full swap with plenty of RAM free is old idle pages, not pressure.
 [ "${swap_total:-0}" -gt 0 ] && [ $((swap_used * 100 / swap_total)) -ge 50 ] && \

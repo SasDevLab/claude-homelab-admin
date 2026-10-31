@@ -44,7 +44,7 @@ def options(words):
                 if ch in VALUE:
                     skip = j == len(w) - 2  # value in the next word, or attached
                     break
-        elif not w.startswith("-"):
+        elif not w.startswith("-") and not re.match(r"\d*[<>]", w):  # >/dev/null is a redirection
             texts.append(w)
     return letters, texts
 
@@ -70,7 +70,8 @@ def pattern(cmd):
         words = after(cmd[m.end():])
         letters, texts = options(words)
         full = "f" in letters or "--full" in letters
-        safe = "A" in letters or "--ignore-ancestors" in letters
+        # -A skips the ancestors; -x needs the whole line to match, never the longer shell line.
+        safe = bool(letters & {"A", "x", "--ignore-ancestors", "--exact"})
         nocase = "i" in letters or "--ignore-case" in letters
         if full and not safe and texts and matches_itself(texts[0], cmd, nocase):
             return texts[0]
@@ -125,7 +126,8 @@ def test():
                "pkill -A -f myapp", "kill $(pgrep -A -f myapp)", "pkill -f '^python app.py'",
                "kill $(pgrep -f '[m]yapp')", "pgrep -d ' ' -f '[m]yapp' | xargs kill",
                "pgrep -f myapp", "killall -r 'app.*'", "ls ~/pkill-notes.txt",
-               "git commit -m 'block pkill -f [m]yapp'"]
+               "git commit -m 'block pkill -f [m]yapp'", "pkill >/dev/null -f '[m]yapp'",
+               "pkill -fx myapp"]
     for c in blocked:
         assert pattern(c), c
     for c in allowed:

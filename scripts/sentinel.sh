@@ -36,9 +36,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-case "$id" in ''|*[!0-9-]*) echo "--from wants a number" >&2; exit 2;; esac
+[[ $id =~ ^-?[0-9]+$ ]] || { echo "--from wants a number" >&2; exit 2; }
 
-k() { timeout 20 $DOCKER exec "$KUMA_CONTAINER" sqlite3 -cmd '.timeout 5000' -separator "$(printf '\037')" "$KUMA_DB" "$1"; }
+k() { timeout 20 $DOCKER exec "$KUMA_CONTAINER" sqlite3 -readonly -cmd '.timeout 5000' -separator "$(printf '\037')" "$KUMA_DB" "$1"; }
 save() { [ "$dry" = 1 ] || echo "$1" > "$state"; }
 BATCH=20          # alerts per run; the rest waits for the next run (a huge prompt makes claude -p fail)
 MAX_FAILS=30      # runs in a row with no delivery before a batch is dropped (logged), so one bad batch cannot block forever
@@ -147,7 +147,10 @@ if [[ $result =~ ^[^A-Za-z]*SENT([^A-Za-z]|$) ]]; then delivered
 else
     # Not on SYSTEM_TOPIC through notify(): that would queue it again and loop.
     st=$SYSTEM_TOPIC
-    if SYSTEM_TOPIC="" notify "$st" "Sentinel: no Claude session reachable, nobody is acting on it. $summary" 8>&-
+    # After a timeout the alert may have reached the session anyway: say so.
+    why="no Claude session reachable, nobody is acting on it"
+    [[ $result == *timeout* ]] && why="no Claude session confirmed it (timeout): maybe nobody is acting on it"
+    if SYSTEM_TOPIC="" notify "$st" "Sentinel: $why. $summary" 8>&-
     then result+=" [chat sent]"; delivered
     else
       # Nothing delivered: state and backlog stay, the next run tries again.

@@ -74,14 +74,16 @@ Options, asked at install or set later with `claude plugin configure
 homelab-admin@homelab-admin`: `owner_language` (the agents' messages on the
 owner's channel), `delegate_pattern` and `delegate_agents` (the delegation
 reminder), `model_limit` (the model weight reminder), `status_script` (your
-own status script, e.g. `scripts/status.sh`, run by `status.sh` in its
-place; it must accept `--busy`, exit 1 if something is working). Set it if
-you have one: the built-in busy check sees only systemd jobs, not uploads or
+own status script, run by `status.sh` in its place; it must accept
+`--busy` and exit 1 if something is working). Give `status_script` as an
+absolute path: a relative one is read from the project root. Set it if you
+have one: the built-in busy check sees only systemd jobs, not uploads or
 workflow runs. `model_limit` and `delegate_pattern` are values for you, the
 owner, to set: a rule of thumb for model weight, and an extended regex for
 commands that count as agent work. An invalid regex in `delegate_pattern`
-disables the reminder (the hook fails quiet and blocks nothing). The options are saved per user, not per project. After an
-install or an update, `/reload-plugins` loads it: `/clear` does not.
+disables the reminder (the hook fails quiet and blocks nothing). The
+options are saved per user, not per project. After an install or an
+update, `/reload-plugins` loads it: `/clear` does not.
 
 Or copy it into the project, if you want to edit the agents in place:
 

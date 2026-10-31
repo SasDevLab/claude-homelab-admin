@@ -18,8 +18,9 @@ of the user it runs as.
   session root. If you want it, prefer narrow sudoers rules (one command
   each) to `ALL`.
 - **`status_script` runs as root.** `status.sh` runs the script you set in
-  that option with `sudo -n bash`. Keep it owned by your user and not
-  writable by others.
+  that option with `sudo -n bash`. Keep it, and the folder that holds it,
+  owned by root and not writable by others: a script your user can edit is
+  a way to root.
 - **Docker access is root access.** A user in the `docker` group can
   become root. The sentinel needs Docker to read Kuma's database.
 

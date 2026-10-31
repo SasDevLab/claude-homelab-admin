@@ -133,7 +133,7 @@ out=$(mktemp)
 parent=$(compgen -e | grep -E '^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CODE_.*)$' |
   grep -v -E '^CLAUDE_CODE_(OAUTH_TOKEN|USE_.*|SKIP_.*)$')
 ( unset $parent; cd /tmp && timeout -k 10 170 "${CLAUDE_BIN:-claude}" -p "$ask" --model haiku \
-    --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
+    --tools ListAgents SendMessage ToolSearch --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
 case $? in 124|137) result=timeout ;; esac
 result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"
 # A crash of the throwaway Claude also ends as NO-SESSION: its stderr says which.
@@ -145,7 +145,7 @@ if [[ $result =~ ^[^A-Za-z]*SENT([^A-Za-z]|$) ]]; then delivered
 else
     # Not on SYSTEM_TOPIC through notify(): that would queue it again and loop.
     st=$SYSTEM_TOPIC
-    if SYSTEM_TOPIC="" notify "$st" "Sentinel: $summary. No Claude session reachable: nobody is acting on it."
+    if SYSTEM_TOPIC="" notify "$st" "Sentinel: no Claude session reachable, nobody is acting on it. $summary"
     then result+=" [chat sent]"; delivered
     else
       # Nothing delivered: state and backlog stay, the next run tries again.

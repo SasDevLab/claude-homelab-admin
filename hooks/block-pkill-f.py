@@ -31,6 +31,9 @@ SHELLS = {"bash", "sh", "dash", "zsh"}  # `bash -c '<code>'`: the code is read t
 KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "{", "!"}
 
 
+SIGNAL = re.compile(r"-([0-9]+|[A-Z][A-Z0-9]+)")
+
+
 def cluster(o, takes):
     """(option letters, value in the next word?) for one option word. A short
     cluster (-fu, -iu) stops at the first letter that takes a value: if that
@@ -56,7 +59,7 @@ def options(words):
         if skip:
             skip = False
         elif r.startswith("-") and len(r) > 1:
-            if re.fullmatch(r"-([0-9]+|[A-Z][A-Z0-9]+)", r):  # a signal: -9, -TERM, -HUP (-U, -P are options)
+            if SIGNAL.fullmatch(r):  # a signal: -9, -TERM, -HUP (-U, -P are options)
                 flags.append(r)
                 continue
             kept, skip = cluster(r, SHORT_VALUE | LONG_VALUE)
@@ -90,14 +93,16 @@ def pattern(cmd):
     # commenters="": a `#` (in a URL, a comment) must not hide what follows.
     # A heredoc body is text written somewhere, not commands, unless a shell reads it.
     def body(m):
-        line = cmd[:m.start()].rsplit("\n", 1)[-1]
-        shell = any(w.rsplit("/", 1)[-1] in SHELLS for w in line.split())  # bash, /bin/sh; not r.sh
-        return m.group(0).replace("<<", " ; ", 1) if shell else ""
-    code = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", body, cmd, flags=re.S)
+        line = cmd[:m.start()].rsplit("\n", 1)[-1] + m.group(3)  # before << and after the word
+        shell = any(w.rsplit("/", 1)[-1] in SHELLS for w in re.split(r"[\s|;&]+", line))  # bash, /bin/sh; not r.sh
+        return m.group(0) if shell else m.group(3)  # keep the rest of the opening line
+    code = re.sub(r"<<-?\s*(['\"]?)(\w+)\1([^\n]*)\n.*?\n\s*\2\s*(?=\n|$)", body, cmd, flags=re.S)
     # Backticks and $( start a command too, but not inside single quotes.
-    out, quoted = [], False
+    out, quoted, dquoted = [], False, False
     for k, ch in enumerate(code):
-        if ch == "'" and (k == 0 or code[k - 1] != "\\" or quoted):
+        if ch == '"' and not quoted and (k == 0 or code[k - 1] != "\\"):
+            dquoted = not dquoted
+        if ch == "'" and not dquoted and (k == 0 or code[k - 1] != "\\" or quoted):
             quoted = not quoted
         if not quoted and (ch == "`" or code.startswith("$(", k)):
             out.append(" ; ")
@@ -139,12 +144,14 @@ def pattern(cmd):
             continue
         name = words[i].rsplit("/", 1)[-1]
         c = None
-        for k in range(i + 1, len(words)):  # -c, -lc, bash -e -u -c
-            if not words[k].startswith("-"):
+        k = i + 1
+        while k < len(words):  # -c, -lc, bash -e -u -c, bash -o pipefail -c
+            if not words[k].startswith("-") and not words[k].startswith("+"):
                 break
             if re.fullmatch(r"-[a-z]*c[a-z]*", words[k]):
                 c = k
                 break
+            k += 2 if words[k] in ("-o", "+o", "-O", "+O") else 1
         if name in SHELLS and c is not None:
             inner = words[c + 1:c + 2]
             found = pattern(inner[0]) if inner else None
@@ -155,22 +162,27 @@ def pattern(cmd):
             continue
         flags, texts = options(words[i + 1:])
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
-        safe = any("A" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--ignore-ancestors" in flags
+        safe = any("A" in f.lstrip("-") and not f.startswith("--") and not SIGNAL.fullmatch(f)
+                   for f in flags) or "--ignore-ancestors" in flags
         if full and not safe and texts and matches_itself(texts[0], cmd):
             return texts[0]
-    return kill_pgrep(cmd)
+    return kill_pgrep(code, cmd)
 
 
-def kill_pgrep(cmd):
+def kill_pgrep(code, cmd):
     """`kill $(pgrep -f X)`, `pgrep -f X | xargs kill`: pgrep leaves out only
     itself, so its parent shell is killed the same way."""
-    if not re.search(r"(?:^|[;&|(\n]|\$\(|\bdo|\bxargs(?:\s+-\S+)*)\s*kill\b", cmd):
+    if not re.search(r"(?:^|[;&|(\n]|\$\(|\bdo|\bxargs(?:\s+-\S+)*)\s*kill\b", code):
         return None
-    for m in re.finditer(r"\bpgrep((?:\s+-\S+)+)\s+(['\"]?)([^\s'\")]+)", cmd):
-        flags, text = m.group(1).split(), m.group(3)
-        if any(("f" in f.lstrip("-") and not f.startswith("--")) or f == "--full" for f in flags) \
-                and matches_itself(text, cmd):
-            return text
+    for m in re.finditer(r"\bpgrep\b([^;&|)`\n]*)", code):
+        try:
+            words = shlex.split(m.group(1))
+        except ValueError:
+            continue
+        flags, texts = options(words)
+        full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
+        if full and texts and matches_itself(texts[0], cmd):
+            return texts[0]
     return None
 
 
@@ -250,6 +262,13 @@ def test():
     assert pattern("pkill -O 60 -f '[m]yapp'") is None
     assert pattern("pkill -A -f myapp") is None
     assert pattern("git commit -m 'hook: block `pkill -f myapp` self-kill'") is None
+    assert pattern("pkill -ALRM -f myapp") == "myapp"
+    assert pattern("cat > r.sh <<EOF && pkill -f myapp\nx\nEOF") == "myapp"
+    assert pattern("cat <<'EOF' | bash\npkill -f myapp\nEOF") == "myapp"
+    assert pattern("bash -o pipefail -c 'pkill -f myapp'") == "myapp"
+    assert pattern("kill $(pgrep -u root -f myapp)") == "myapp"
+    assert pattern("cat > r.sh <<'EOF'\nkill $(pgrep -f myapp)\nEOF") is None
+    assert pattern('echo "don\'t" "$(pkill -f myapp)"') == "myapp"
     assert pattern("pkill -U root -f myapp") == "myapp"
     assert pattern("pkill -P 1234 -f '[m]yapp'") is None
     assert pattern("pkill -F /run/x.pid -f myapp") == "myapp"

@@ -94,7 +94,7 @@ notify() {
       local subject first=${text%%$'\n'*} tls=--ssl-reqd auth=
       subject="${NOTIFY_SUBJECT:-homelab}: ${first:0:60}"
       # A relay on this machine may speak plain SMTP; anything else must use TLS.
-      case $SMTP_URL in smtp://localhost*|smtp://127.0.0.1*) tls= ;; esac
+      [[ $SMTP_URL =~ ^smtp://(localhost|127\.0\.0\.1)(:[0-9]+)?/?$ ]] && tls=   # not localhost.example.net
       # User and password come from fd 3.
       [ "$secret" = none ] || auth="-K /dev/fd/3"
       printf 'From: %s\nTo: %s\nSubject: =?UTF-8?B?%s?=\nDate: %s\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \

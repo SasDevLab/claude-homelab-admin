@@ -1,10 +1,45 @@
 {
   "name": "homelab-admin",
   "description": "Claude Code as the administrator of a home server: a coordinator with sub-agents, rules with their reasons, procedure skills, guard hooks and a sentinel that wakes the session on a monitor Down.",
-  "version": "0.1.0",
-  "author": { "name": "SasDevLab" },
+  "version": "0.2.0",
+  "author": {
+    "name": "SasDevLab"
+  },
   "homepage": "https://github.com/SasDevLab/claude-homelab-admin",
   "repository": "https://github.com/SasDevLab/claude-homelab-admin",
   "license": "MIT",
-  "keywords": ["homelab", "self-hosted", "sysadmin", "agents", "home-assistant", "n8n"]
+  "keywords": [
+    "homelab",
+    "self-hosted",
+    "sysadmin",
+    "agents",
+    "home-assistant",
+    "n8n"
+  ],
+  "userConfig": {
+    "owner_language": {
+      "type": "string",
+      "title": "Owner's language",
+      "description": "Language of the messages the agents send to the owner's channel (e.g. English, Italiano).",
+      "default": "English"
+    },
+    "delegate_pattern": {
+      "type": "string",
+      "title": "Delegation pattern",
+      "description": "Extended regex of commands that are agent work, not coordinator work.",
+      "default": "systemctl +(enable|daemon-reload)|/etc/systemd/|docker compose +up|apt(-get)? +install"
+    },
+    "delegate_agents": {
+      "type": "string",
+      "title": "Agents for that work",
+      "description": "Agent names the delegation reminder suggests.",
+      "default": "system, infra-security"
+    },
+    "model_limit": {
+      "type": "string",
+      "title": "Model weight limit",
+      "description": "The memory rule for the ollama host, shown before a model is pulled or run.",
+      "default": "keep models under 60% of the free RAM of the ollama host"
+    }
+  }
 }

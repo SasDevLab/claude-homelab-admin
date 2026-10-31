@@ -5,8 +5,8 @@
 # Why: a model heavier than the free RAM can reboot the host that runs it, and
 # everything else running there goes down with it. The name of a model does
 # not say its weight: the manifest does.
-# Edit LIMIT for your own machine.
-LIMIT='keep models under 60% of the free RAM of the ollama host'
+# LIMIT comes from the plugin option model_limit; the fallback is the default.
+LIMIT=${CLAUDE_PLUGIN_OPTION_MODEL_LIMIT:-'keep models under 60% of the free RAM of the ollama host'}
 
 in=$(cat)   # read it all: grep -q would close the pipe early on a big Write
 if printf '%s' "$in" | grep -q -i -E 'api/pull|ollama +(pull|run)'; then

@@ -23,6 +23,7 @@ LOG=$kit/logs/sentinel.log
 log() { echo "$(date '+%F %T')  $*" >> "$LOG"; }
 . "$kit/scripts/notify.sh" || exit 1
 # One run at a time: a run by hand while the timer fires would send and trim the same lines twice.
+# fd 8 is closed for every child (claude, curl), so a leftover child cannot keep the lock.
 exec 8>>"$LOG"; flock -n 8 || { log "another run is going on: skipped"; exit 0; }
 
 dry=0; id=-1
@@ -132,7 +133,7 @@ out=$(mktemp)
 # CLAUDECODE, CLAUDE_PID, CLAUDE_EFFORT, CLAUDE_CODE_*); login and provider stay.
 parent=$(compgen -e | grep -E '^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CODE_.*)$' |
   grep -v -E '^CLAUDE_CODE_(OAUTH_TOKEN|USE_.*|SKIP_.*)$')
-( unset $parent; cd /tmp && timeout -k 10 170 "${CLAUDE_BIN:-claude}" -p "$ask" --model haiku \
+( exec 8>&-; unset $parent; cd /tmp && timeout -k 10 170 "${CLAUDE_BIN:-claude}" -p "$ask" --model haiku \
     --tools ListAgents SendMessage ToolSearch --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
 case $? in 124|137) result=timeout ;; esac
 result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"
@@ -145,7 +146,7 @@ if [[ $result =~ ^[^A-Za-z]*SENT([^A-Za-z]|$) ]]; then delivered
 else
     # Not on SYSTEM_TOPIC through notify(): that would queue it again and loop.
     st=$SYSTEM_TOPIC
-    if SYSTEM_TOPIC="" notify "$st" "Sentinel: no Claude session reachable, nobody is acting on it. $summary"
+    if SYSTEM_TOPIC="" notify "$st" "Sentinel: no Claude session reachable, nobody is acting on it. $summary" 8>&-
     then result+=" [chat sent]"; delivered
     else
       # Nothing delivered: state and backlog stay, the next run tries again.

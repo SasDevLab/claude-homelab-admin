@@ -92,12 +92,12 @@ notify() {
         --data-binary "{\"text\":$(_json "$text")}") ;;
     email)
       local subject first=${text%%$'\n'*} tls=--ssl-reqd auth=
-      subject="${NOTIFY_SUBJECT:-homelab}: ${first:0:60}"
+      subject="${NOTIFY_SUBJECT:-homelab}: ${first:0:40}"   # shortcut: one encoded word, may pass 75 chars with many accents
       # A relay on this machine may speak plain SMTP; anything else must use TLS.
       [[ $SMTP_URL =~ ^smtp://(localhost|127\.0\.0\.1)(:[0-9]+)?/?$ ]] && tls=   # not localhost.example.net
       # User and password come from fd 3.
       [ "$secret" = none ] || auth="-K /dev/fd/3"
-      printf 'From: %s\nTo: %s\nSubject: =?UTF-8?B?%s?=\nDate: %s\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \
+      printf 'From: %s\nTo: %s\nSubject: =?UTF-8?B?%s?=\nDate: %s\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\n%s\n' \
         "$MAIL_FROM" "$MAIL_TO" "$(printf '%s' "$subject" | base64 -w0)" "$(LC_ALL=C date -R)" "$text" |
         curl -s -m 30 --crlf $tls $auth --mail-from "$MAIL_FROM" --mail-rcpt "$MAIL_TO" -T - "$SMTP_URL" \
           3< <([ "$secret" = none ] || printf 'user = %s\n' "$(_cfg "$SMTP_USER:$secret")") \

@@ -3,6 +3,8 @@ Description=Sentinel, every minute
 
 [Timer]
 OnCalendar=*-*-* *:*:00
+# Without it systemd may shift each run by up to a minute.
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target

@@ -142,6 +142,12 @@ sudo systemctl daemon-reload && sudo systemctl enable --now sentinel.timer
 State, queue and log go to `logs/` next to `scripts/`. Kuma on MariaDB is
 not supported: the script reads SQLite with `sqlite3` inside the container.
 
+## Security
+
+The kit gives the session no permission of its own, but an administrator
+has the power of its user. What runs by itself, where secrets go, and how
+to report a problem: [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT, see `LICENSE`.

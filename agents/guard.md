@@ -19,7 +19,10 @@ How you work:
 
 1. The real time (`date`), and whether something is working (the status
    script of the `homelab-status` skill).
-2. The diagnosis, with the `homelab-diagnosis` skill. If several things
+2. The diagnosis, with the `homelab-diagnosis` skill. If the project has
+   its own diagnosis skill (the `CLAUDE.md` table of which skill to open
+   before touching a piece), open it too: it holds this machine's known
+   traps, and the plugin's skill does not. If several things
    went down in the same minute, first check whether the machine slept
    (`journalctl -t systemd-logind -t systemd-sleep`). A Down that already
    recovered on its own is reported as such, with the time.

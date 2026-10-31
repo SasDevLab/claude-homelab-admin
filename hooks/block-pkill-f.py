@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""PreToolUse hook (Bash): blocks `pkill -f <text>` (and `killall -r`) when the
-text would also kill the command itself. The shell that runs it has that text
-in its own command line, so `pkill -f myapp` also kills `bash -c '... myapp ...'`
-and the tool call dies with exit code 144. The square-bracket trick,
+"""PreToolUse hook (Bash): blocks `pkill -f <text>` when the text would also
+kill the command itself. The shell that runs it has that text in its own
+command line, so `pkill -f myapp` also kills `bash -c '... myapp ...'` and
+the tool call dies with exit code 144. The square-bracket trick,
 `pkill -f '[m]yapp'`, matches the same process but never matches itself.
+(`killall` matches process names, not command lines: it cannot hit the shell.)
 
 Self-test: python3 block-pkill-f.py --test
 """
@@ -12,17 +13,18 @@ import re
 import shlex
 import sys
 
-
-# Options that take a value: short letters per command (for pkill -o is
-# "oldest" and takes none), long names for both.
-SHORT_VALUE = {"pkill": set("gGPstuUF"), "killall": set("suoyn")}
+# pkill options that take a value: short letters, and long names.
+SHORT_VALUE = set("gGPstuUF")
 LONG_VALUE = {"--signal", "--pidfile", "--ns", "--nslist", "--cgroup", "--euid", "--uid",
-              "--group", "--pgroup", "--session", "--terminal", "--parent", "--user",
-              "--older-than", "--younger-than"}
+              "--group", "--pgroup", "--session", "--terminal", "--parent", "--user"}
+# Commands that run the next word as a command, and their options that take a value.
+WRAPPERS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U"},
+            "timeout": {"-s", "-k", "--signal", "--kill-after"},
+            "nice": {"-n"}, "env": {"-u", "-C", "-S"}, "nohup": set(), "exec": set()}
 
 
-def options(cmd, words):
-    """Split the words after pkill/killall into option flags and free texts.
+def options(words):
+    """Split the words after pkill into option flags and free texts.
     The value of an option (`-u root`, `-fu root`, `-uroot`) is neither."""
     flags, texts, skip = [], [], False
     for r in words:
@@ -39,7 +41,7 @@ def options(cmd, words):
             kept = ""
             for j, ch in enumerate(letters):
                 kept += ch
-                if ch in SHORT_VALUE[cmd]:
+                if ch in SHORT_VALUE:
                     skip = j == len(letters) - 1  # value in the next word, or attached
                     break
             flags.append("-" + kept)
@@ -48,11 +50,29 @@ def options(cmd, words):
     return flags, texts
 
 
+def command_start(words):
+    """Index of the real command after wrappers (sudo -u root, timeout -s KILL 5, env A=b)."""
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if w in WRAPPERS:
+            takes, i = WRAPPERS[w], i + 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 2 if words[i] in takes else 1
+        elif re.fullmatch(r"\w+=\S*|\d+(\.\d+)?[smhd]?", w):  # env VAR=x, timeout 5
+            i += 1
+        else:
+            return i
+    return i
+
+
 def pattern(cmd):
-    """The first text searched by pkill -f / killall -r without square brackets."""
+    """The first text searched by pkill -f that can match the shell running it."""
     # Quote-aware split: a `;` inside a string does not separate commands.
+    # commenters="": a `#` (in a URL, a comment) must not hide what follows.
     lex = shlex.shlex(cmd.replace("\n", " ; "), posix=True, punctuation_chars=";&|()")
     lex.whitespace_split = True
+    lex.commenters = ""
     try:
         tokens = list(lex)
     except ValueError:
@@ -66,43 +86,47 @@ def pattern(cmd):
             cur.append(t)
     pieces.append(cur)
     for words in pieces:
-        # pkill counts only as a command: first word, or after sudo/env/timeout.
-        # Inside a string (commit message, echo) it is not a command.
-        i = 0
-        while i < len(words) and (words[i] in ("sudo", "-n", "env", "timeout", "nice")
-                                  or re.fullmatch(r"\w+=\S*|\d+[smh]?", words[i])):
-            i += 1
-        if i >= len(words):
+        # pkill counts only as a command, not inside a string (commit message, echo).
+        i = command_start(words)
+        if i >= len(words) or words[i].rsplit("/", 1)[-1] != "pkill":
             continue
-        p = words[i]
-        if p.rsplit("/", 1)[-1] not in ("pkill", "killall"):
-            continue
-        flags, texts = options("killall" if p.endswith("killall") else "pkill", words[i + 1:])
+        flags, texts = options(words[i + 1:])
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
-        regex = p.endswith("killall") and any(f in ("-r", "--regexp") for f in flags)
-        if (full or regex) and texts and "[" not in texts[0]:
+        # Brackets already there, or anchored at the start (the shell's line starts with its own name).
+        if full and texts and "[" not in texts[0] and not texts[0].startswith("^"):
             return texts[0]
     return None
+
+
+def bracketed(p):
+    """p with its first letter or digit in brackets: same matches, never itself."""
+    m = re.search(r"[A-Za-z0-9]", p)
+    return f"{p[:m.start()]}[{m.group()}]{p[m.end():]}" if m else None
 
 
 def test():
     assert pattern("pkill -f myapp") == "myapp"
     assert pattern("sudo -n pkill -f 'node server'") == "node server"
-    assert pattern("ls; killall -r 'app.*'") == "app.*"
     assert pattern("pkill -f '[m]yapp'") is None
     assert pattern("pkill myapp") is None
     assert pattern("pkill -u root -f '[m]yscript'") is None
     assert pattern("pkill -u root -f myscript") == "myscript"
-    assert pattern("killall -u bob -r 'app.*'") == "app.*"
     assert pattern("pkill -o -f myapp") == "myapp"
     assert pattern("pkill -fu root myapp") == "myapp"
     assert pattern("pkill -uroot -f myapp") == "myapp"
     assert pattern("pkill -STOP -f myapp") == "myapp"
     assert pattern("pkill --signal TERM -f myapp") == "myapp"
     assert pattern("pkill -fu root '[m]yapp'") is None
-    assert pattern("killall -o 1h -r 'app.*'") == "app.*"
     assert pattern("git commit -m 'stop pkill -f myapp'") is None
     assert pattern("echo x | pkill --full myapp") == "myapp"
+    assert pattern("ls #check\npkill -f myapp") == "myapp"
+    assert pattern("curl http://h/#x; pkill -f myapp") == "myapp"
+    assert pattern("sudo -u root pkill -f myapp") == "myapp"
+    assert pattern("timeout -s KILL 5 pkill -f myapp") == "myapp"
+    assert pattern("pkill -f '^python app.py'") is None
+    assert pattern("killall -r 'app.*'") is None
+    assert bracketed("myapp") == "[m]yapp"
+    assert bracketed(".*foo") == ".*[f]oo"
     print("ok")
 
 
@@ -116,10 +140,14 @@ if __name__ == "__main__":
         sys.exit(0)
     found = pattern(cmd)
     if found:
+        fix = bracketed(found)
+        advice = f"Use square brackets: pkill -f '{fix}'." if fix else \
+            "Put one letter of the pattern in square brackets, as in '[m]yapp'."
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason":
                 f"pkill -f '{found}' also kills the shell that runs it (that text is in its "
-                f"command line). Use square brackets: pkill -f '[{found[0]}]{found[1:]}'.",
+                f"command line). {advice}",
         }}))
+    sys.exit(0)

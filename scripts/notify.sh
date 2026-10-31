@@ -73,10 +73,10 @@ notify() {
     ntfy)
       # NTFY_TOKEN_CMD only for a server with access control; the header comes from fd 3.
       if [ -n "$NTFY_TOKEN_CMD" ]; then
-        code=$(_post "$secret" -H @/dev/fd/3 --data-binary "$text" \
+        code=$(_post "$secret" -H @/dev/fd/3 --data-raw "$text" \
           3< <(echo "Authorization: Bearer $(_secret "$NTFY_TOKEN_CMD")"))
       else
-        code=$(_post "$secret" --data-binary "$text")
+        code=$(_post "$secret" --data-raw "$text")   # --data-raw: a text starting with @ is not a file to upload
       fi ;;
     discord)
       # Discord takes at most 2000 characters.

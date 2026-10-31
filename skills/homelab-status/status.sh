@@ -16,8 +16,9 @@ busy() {
   local n=0 line
   # A timer's job running now (backups, copies, reports) is a oneshot
   # service in "activating".
-  while read -r line; do
-    [ -n "$line" ] && { echo "  working: ${line%% *} (systemd job running now)"; n=$((n+1)); }
+  while read -r unit _ _ sub _; do
+    # auto-restart is a crash loop waiting to retry, not work in progress.
+    [ -n "$unit" ] && [ "$sub" != auto-restart ] && { echo "  working: $unit (systemd job running now)"; n=$((n+1)); }
   done < <(systemctl list-units --type=service --state=activating --no-legend --plain 2>/dev/null)
   # Add your own checks here: uploads to the photo library, running
   # workflow executions, job queues. For a counter, read it twice a few
@@ -62,6 +63,7 @@ if command -v docker >/dev/null; then
     up=$(grep -c '|Up' <<<"$out")
     echo "DOCKER   $up of $(grep -c . <<<"$out") containers up"
     while IFS='|' read -r name status; do
+      [ -n "$name" ] || continue   # no containers: one empty line
       case "$status" in
         Up*unhealthy*) attention+=("container $name: $status") ;;
         Up*) ;;

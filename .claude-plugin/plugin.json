@@ -1,7 +1,7 @@
 {
   "name": "homelab-admin",
   "description": "Claude Code as the administrator of a home server: a coordinator with sub-agents, rules with their reasons, procedure skills, guard hooks and a sentinel that wakes the session on a monitor Down.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": {
     "name": "SasDevLab"
   },

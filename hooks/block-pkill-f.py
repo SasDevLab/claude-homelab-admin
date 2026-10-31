@@ -17,12 +17,13 @@ import sys
 SHORT_VALUE = set("gGPstuUF")
 LONG_VALUE = {"--signal", "--pidfile", "--ns", "--nslist", "--cgroup", "--euid", "--uid",
               "--group", "--pgroup", "--session", "--terminal", "--parent", "--user"}
-# Commands that run the next word as a command, and their options that take a value.
-WRAPPERS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U"},
-            "timeout": {"-s", "-k", "--signal", "--kill-after"},
-            "nice": {"-n"}, "env": {"-u", "-C", "-S"}, "nohup": set(), "exec": set(),
-            "time": set(), "command": set(), "watch": {"-n", "-d"},
-            "xargs": {"-n", "-I", "-P", "-L", "-d", "-a", "-E", "-s"}}
+# Commands that run the next word as a command, and the short option letters
+# (or long options) that take a value as the next word.
+WRAPPERS = {"sudo": set("ugCDhprtU"), "doas": set("uC"), "timeout": {"s", "k", "--signal", "--kill-after"},
+            "nice": {"n"}, "ionice": set("cnp"), "env": {"u", "C"}, "nohup": set(), "exec": {"a"},
+            "time": set(), "command": set(), "setsid": set(), "stdbuf": set("ioe"),
+            "watch": {"n"}, "xargs": set("nIPLdaEs")}
+SHELLS = {"bash", "sh", "dash", "zsh"}  # `bash -c '<code>'`: the code is read too
 # Shell keywords a command can follow: `then pkill`, `do pkill`, `{ pkill`, `! pkill`.
 KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "{", "!"}
 
@@ -63,8 +64,11 @@ def command_start(words):
             i += 1
         elif w in WRAPPERS:
             takes, i = WRAPPERS[w], i + 1
-            while i < len(words) and words[i].startswith("-"):
-                i += 2 if words[i] in takes else 1
+            while i < len(words) and words[i].startswith("-") and words[i] != "-":
+                o = words[i]
+                # -u root, -iu root, --signal KILL: the value is the next word; -oL, -c3: attached
+                value_next = o in takes if o.startswith("--") else (o[-1] in takes and len(o) >= 2)
+                i += 2 if value_next else 1
         elif re.fullmatch(r"\w+=\S*|\d+(\.\d+)?[smhd]?", w):  # env VAR=x, timeout 5
             i += 1
         else:
@@ -76,7 +80,9 @@ def pattern(cmd):
     """The first text searched by pkill -f that can match the shell running it."""
     # Quote-aware split: a `;` inside a string does not separate commands.
     # commenters="": a `#` (in a URL, a comment) must not hide what follows.
-    lex = shlex.shlex(cmd.replace("\n", " ; "), posix=True, punctuation_chars=";&|()")
+    # Backticks and $( start a command too.
+    code = cmd.replace("\n", " ; ").replace("`", " ; ").replace("$(", " ; ")
+    lex = shlex.shlex(code, posix=True, punctuation_chars=";&|()")
     lex.whitespace_split = True
     lex.commenters = ""
     try:
@@ -94,19 +100,38 @@ def pattern(cmd):
     for words in pieces:
         # pkill counts only as a command, not inside a string (commit message, echo).
         i = command_start(words)
-        if i >= len(words) or words[i].rsplit("/", 1)[-1] != "pkill":
+        if i >= len(words):
+            continue
+        name = words[i].rsplit("/", 1)[-1]
+        if name in SHELLS and "-c" in words[i + 1:i + 3]:
+            inner = words[words.index("-c", i) + 1:][:1]
+            found = pattern(inner[0]) if inner else None
+            if found:
+                return found
+            continue
+        if name != "pkill":
             continue
         flags, texts = options(words[i + 1:])
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
-        # Brackets already there, or anchored at the start (the shell's line starts with its own name).
-        if full and texts and "[" not in texts[0] and not texts[0].startswith("^"):
+        if full and texts and matches_itself(texts[0], cmd):
             return texts[0]
     return None
 
 
+def matches_itself(p, cmd):
+    """Would pkill's regex p match the shell running cmd? Its command line holds cmd."""
+    try:
+        return re.search(p, cmd) is not None
+    except re.error:  # not a Python regex: fall back to the bracket rule
+        return "[" not in p
+
+
 def bracketed(p):
-    """p with its first letter or digit in brackets: same matches, never itself."""
-    m = re.search(r"(?<!\\)[A-Za-z0-9]", p)
+    """p with its first letter in brackets: same matches, never itself.
+    Only for a plain pattern: inside an escape or a quantifier it would change the regex."""
+    if not re.fullmatch(r"[\w .:/=-]+", p):
+        return None
+    m = re.search(r"[A-Za-z0-9]", p)
     return f"{p[:m.start()]}[{m.group()}]{p[m.end():]}" if m else None
 
 
@@ -132,8 +157,21 @@ def test():
     assert pattern("pkill -f '^python app.py'") is None
     assert pattern("killall -r 'app.*'") is None
     assert bracketed("myapp") == "[m]yapp"
-    assert bracketed(".*foo") == ".*[f]oo"
-    assert bracketed("\\bmyapp") == "\\b[m]yapp"
+    assert bracketed(".*foo") is None
+    assert bracketed("\\bmyapp") is None
+    assert bracketed("my app") == "[m]y app"
+    assert pattern("watch -d pkill -f myapp") == "myapp"
+    assert pattern("bash -c 'pkill -f myapp'") == "myapp"
+    assert pattern("echo `pkill -f myapp`") == "myapp"
+    assert pattern("x=$(pkill -f myapp)") == "myapp"
+    assert pattern("sudo -iu root pkill -f myapp") == "myapp"
+    assert pattern("exec -a x pkill -f myapp") == "myapp"
+    assert pattern("setsid pkill -f myapp") == "myapp"
+    assert pattern("doas pkill -f myapp") == "myapp"
+    assert pattern("stdbuf -oL pkill -f myapp") == "myapp"
+    assert pattern("ionice -c3 pkill -f myapp") == "myapp"
+    assert pattern("pkill -f 'myapp.*[0-9]'") == "myapp.*[0-9]"
+    assert pattern("pkill -f 'myap[p]'") is None
     assert pattern("pkill -U root -f myapp") == "myapp"
     assert pattern("pkill -P 1234 -f '[m]yapp'") is None
     assert pattern("pkill -F /run/x.pid -f myapp") == "myapp"

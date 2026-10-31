@@ -22,6 +22,8 @@ state=$kit/logs/sentinel-state
 LOG=$kit/logs/sentinel.log
 log() { echo "$(date '+%F %T')  $*" >> "$LOG"; }
 . "$kit/scripts/notify.sh" || exit 1
+# One run at a time: a run by hand while the timer fires would send and trim the same lines twice.
+exec 8>>"$LOG"; flock -n 8 || { log "another run is going on: skipped"; exit 0; }
 
 dry=0; id=-1
 while [ $# -gt 0 ]; do
@@ -49,8 +51,20 @@ case "$max" in
   ''|*[!0-9]*) log "Kuma did not answer: its Downs wait, the queue goes on" ;;
   *)
     if [ "$id" -lt 0 ]; then id=$max; save "$max"; fi   # first run: Downs from now on; the queue still goes out
-    # Kuma's database recreated or restored: its ids start again below the state.
-    if [ "$id" -gt "$max" ]; then log "state $id ahead of Kuma ($max): Kuma database reset, starting from $max"; id=$max; save "$max"; fi
+    # Kuma's ids below the state: a database recreated or restored, or a container
+    # briefly on an empty one. Only after 10 runs in a row is it taken as the new
+    # database; before that, a run would replay or skip Downs.
+    behind=$kit/logs/sentinel-kuma-behind
+    if [ "$id" -gt "$max" ]; then
+      b=$(( $(cat "$behind" 2>/dev/null || echo 0) + 1 ))
+      if [ "$b" -ge 10 ]; then log "Kuma ($max) behind the state ($id) for 10 runs: new database, starting from $max"; id=$max; save "$max"; rm -f "$behind"
+      else [ "$dry" = 1 ] || echo "$b" > "$behind"; log "Kuma ($max) behind the state ($id), run $b of 10: its Downs wait"; max=""; fi
+    else rm -f "$behind"; fi
+  ;;
+esac
+case "$max" in
+  ''|*[!0-9]*) ;;   # no answer, or Kuma behind: no Downs this run
+  *)
     if rows=$(k "select h.id, m.name, replace(replace(replace(replace(h.msg, char(13), ' '), char(10), ' '), char(9), ' '), char(31), ' '), h.time
       from heartbeat h join monitor m on m.id = h.monitor_id
       where h.important = 1 and h.status = 0 and h.id > $id and h.id <= $max order by h.id limit $BATCH" 2>/dev/null); then
@@ -69,10 +83,10 @@ queue=$ALERT_QUEUE; backlog=$queue.backlog; fails=$kit/logs/sentinel-fails
 if [ "$dry" = 1 ]; then taken=$(cat "$backlog" "$queue" 2>/dev/null | head -n "$BATCH")
 else
   {
-    flock 9   # the lock notify.sh appends under: no line written while the queue moves
+    flock 9   # the lock notify.sh appends under (the logs folder): no line written while the queue moves
     [ -f "$queue.moving" ] && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"   # a run killed mid-move
     mv "$queue" "$queue.moving" 2>/dev/null && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"
-  } 9>>"$queue.lock"
+  } 9<"$(dirname "$queue")"
   taken=$(head -n "$BATCH" "$backlog" 2>/dev/null)
 fi
 n_taken=0; [ -n "$taken" ] && n_taken=$(printf '%s\n' "$taken" | wc -l)
@@ -112,7 +126,9 @@ $text
 END-$fence
 Answer only 'SENT <name>' if SendMessage succeeded, otherwise 'NO-SESSION'. Do nothing else."
 out=$(mktemp)
-( unset $(compgen -e | grep '^CLAUDE'); cd /tmp && timeout -k 10 170 "$CLAUDE_BIN" -p "$ask" --model haiku \
+# The parent session's CLAUDE* variables go, not the user's own (CLAUDE_BIN, CLAUDE_CONFIG_DIR).
+bin=$CLAUDE_BIN
+( unset $(compgen -e | grep '^CLAUDE' | grep -v -x -e CLAUDE_BIN -e CLAUDE_CONFIG_DIR); cd /tmp && timeout -k 10 170 "$bin" -p "$ask" --model haiku \
     --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
 case $? in 124|137) result=timeout ;; esac
 result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"

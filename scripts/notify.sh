@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Send a message to the owner: Telegram, ntfy, Discord, Slack, email, or any Apprise channel.
 # Use it as a command or source it:
-#   notify.sh <topic> "<text>"        topic: a Telegram message_thread_id, or "" for none
+#   notify.sh <topic> "<text>"        topic: a number is a Telegram message_thread_id;
+#                                     equal to SYSTEM_TOPIC (a number or a word) it also wakes the session
 #   NOTIFY_NOQUEUE=1 notify.sh ...    on SYSTEM_TOPIC, send without waking the session
 #   . notify.sh; notify <topic> "<text>"
 #
@@ -54,7 +55,7 @@ notify() {
   # would otherwise come back to the session as a new alert.
   if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ] && [ "${NOTIFY_NOQUEUE:-0}" != 1 ] && [ -n "$text" ]; then
     mkdir -p "$(dirname "$ALERT_QUEUE")" &&
-      { flock 9; echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"; } 9>>"$ALERT_QUEUE.lock"
+      { flock 9; echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"; } 9<"$(dirname "$ALERT_QUEUE")"   # lock the folder: no lock file root could own
   fi
   case $via in
     telegram) secret=$(_secret "$TELEGRAM_TOKEN_CMD") ;;

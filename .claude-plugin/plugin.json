@@ -1,7 +1,7 @@
 {
   "name": "homelab-admin",
   "description": "Claude Code as the administrator of a home server: a coordinator with sub-agents, rules with their reasons, procedure skills, guard hooks and a sentinel that wakes the session on a monitor Down.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "SasDevLab"
   },
@@ -40,6 +40,12 @@
       "title": "Model weight limit",
       "description": "The memory rule for the ollama host, shown before a model is pulled or run.",
       "default": "keep models under 60% of the free RAM of the ollama host"
+    },
+    "status_script": {
+      "type": "string",
+      "title": "Project status script",
+      "description": "Path (from the project root) of your own status script, e.g. scripts/status.sh. When set, status.sh runs it instead of its own checks; it must accept --busy (exit 1 if something is working). Empty: the built-in checks.",
+      "default": ""
     }
   }
 }

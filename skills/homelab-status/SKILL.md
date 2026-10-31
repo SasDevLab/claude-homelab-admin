@@ -11,11 +11,12 @@ one-screen answer into half an hour of exploring.
 ## Now
 
 ```bash
-sudo -n bash <this skill's folder>/status.sh
+sudo -n bash <this skill's folder>/status.sh ${user_config.status_script}
 ```
 
-(If the project has its own status script, named in `CLAUDE.md`, that one
-wins.)
+Run it exactly so, with the argument: when the plugin option
+`status_script` names the project's own script, `status.sh` hands over to
+it, and that script sees what the built-in checks cannot.
 
 It prints the real time, what is working, memory and swap, load,
 temperature, disks, containers, and at the bottom **only what needs
@@ -30,7 +31,7 @@ measured" instead; a script you write yourself must do the same.
 ## Before intervening
 
 ```bash
-sudo -n bash <this skill's folder>/status.sh --busy
+sudo -n bash <this skill's folder>/status.sh --busy ${user_config.status_script}
 ```
 
 Exit 1 if something is working. **Something working → ask before
@@ -38,8 +39,11 @@ interrupting it. Nothing working → act, and tell the owner afterwards.**
 Irreversible actions (deleting data, photos, backups) are asked
 **always**, at any hour, with nobody on the system.
 
-Out of the box it only sees systemd jobs running now (backups, copies).
-Add your applications in the `busy()` function: uploads to the photo
+Out of the box it only sees systemd jobs running now (backups, copies),
+**not** uploads or workflow runs: an agent trusting it could restart in the
+middle of a job. Either set the plugin option `status_script` to your own
+script (it must accept `--busy`), or add your applications in the `busy()`
+function: uploads to the photo
 library, running workflow executions, job queues. **A counter is read
 twice, a few seconds apart**: one file that arrived is not an upload in
 progress.

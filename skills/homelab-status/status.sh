@@ -4,12 +4,22 @@
 #   status.sh          the whole picture, things needing attention last
 #   status.sh --busy   only the "is something working?" check:
 #                      exit 1 if something is working, 0 if nothing is
+#   status.sh [--busy] <project script>
+#                      run the project's own script instead (the plugin
+#                      option status_script); it must accept --busy too
 #
 # Run it with sudo if Docker needs root here: without it, containers are
 # reported as "not measured", never as down.
 
 set -u
 attention=()
+
+busy_flag=""; [ "${1:-}" = "--busy" ] && { busy_flag="--busy"; shift; }
+# The project's own script sees what this one cannot (uploads, workflows).
+if [ -n "${1:-}" ]; then
+  if [ -f "$1" ]; then exec bash "$1" $busy_flag; fi
+  echo "status_script $1 not found: using the built-in checks" >&2
+fi
 
 # Something is working right now. Prints one line per job, returns the count.
 busy() {
@@ -27,7 +37,7 @@ busy() {
   return $(( n > 0 ))
 }
 
-if [ "${1:-}" = "--busy" ]; then
+if [ -n "$busy_flag" ]; then
   busy; n=$?
   [ "$n" -eq 0 ] && echo "Nothing is working." && exit 0
   exit 1

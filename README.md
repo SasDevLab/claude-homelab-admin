@@ -70,6 +70,16 @@ installing: `claude --plugin-dir <kit folder>`. To remove it:
 `/plugin uninstall homelab-admin@homelab-admin`, then
 `/plugin marketplace remove homelab-admin`.
 
+Options, asked at install or set later with `claude plugin configure
+homelab-admin@homelab-admin`: `owner_language` (the agents' messages on the
+owner's channel), `delegate_pattern` and `delegate_agents` (the delegation
+reminder), `model_limit` (the model weight reminder), `status_script` (your
+own status script, e.g. `scripts/status.sh`, run by `status.sh` in its
+place; it must accept `--busy`, exit 1 if something is working). Set it if
+you have one: the built-in busy check sees only systemd jobs, not uploads or
+workflow runs. The options are saved per user, not per project. After an
+install or an update, `/reload-plugins` loads it: `/clear` does not.
+
 Or copy it into the project, if you want to edit the agents in place:
 
 ```sh

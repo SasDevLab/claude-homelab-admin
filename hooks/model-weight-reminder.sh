@@ -8,7 +8,8 @@
 # Edit LIMIT for your own machine.
 LIMIT='keep models under 60% of the free RAM of the ollama host'
 
-if grep -q -i -E 'api/pull|ollama +(pull|run)'; then
+in=$(cat)   # read it all: grep -q would close the pipe early on a big Write
+if printf '%s' "$in" | grep -q -i -E 'api/pull|ollama +(pull|run)'; then
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"MODEL REMINDER: %s. Before downloading or loading a model, read its weight from the manifest (sum of the layers, projector included). A load test is announced to the owner first. On a small CPU, set num_thread in the request options: the default can be ten times slower."}}\n' "$LIMIT"
 fi
 exit 0

@@ -9,7 +9,8 @@ the same process but never matches itself.
 One rule, no shell parser: every `pkill`/`pgrep` word in the command, also
 inside quotes (bash -c, eval, su -c, sudo, heredocs), is checked by asking
 whether its pattern matches the command text. Text that only mentions it (a
-commit message) is blocked too: write `[m]yapp` there as well.
+commit message, a heredoc that writes a script) is blocked too: write
+`[m]yapp` there as well, which works the same in the script.
 (`killall` matches process names, not command lines: it cannot hit the shell.)
 
 Self-test: python3 block-pkill-f.py --test
@@ -48,13 +49,15 @@ def options(words):
     return letters, texts
 
 
-def matches_itself(p, cmd):
-    """Would the regex p match the shell running cmd? Its command line holds cmd."""
-    if re.search(r"\$[{\w(]", p):  # "$APP": the shell fills it in, we cannot know
+def matches_itself(p, cmd, nocase=False):
+    """Would the regex p match the shell running cmd? Its command line is
+    cmd behind the shell and its wrapper (`/bin/bash -c ...`)."""
+    if re.search(r"\$[{\w(]|`", p):  # "$APP", `cat f`: the shell fills it in, we cannot know
         return True
     p = p.replace("\\<", "\\b").replace("\\>", "\\b")  # ERE word edges
     try:
-        return re.search(p, cmd) is not None
+        return any(re.search(p, line, re.I if nocase else 0)
+                   for line in (cmd, "/bin/bash -c " + cmd, "bash -c " + cmd))
     except re.error:  # not a Python regex: fall back to the bracket rule
         return "[" not in p
 
@@ -64,17 +67,32 @@ def pattern(cmd):
     for m in re.finditer(r"(?<![\w.-])(pkill|pgrep)(?![\w.-])", cmd):
         if m.group(1) == "pgrep" and not re.search(r"(?<![\w.-])kill(?![\w.-])", cmd):
             continue  # pgrep only lists; it hurts only when its output is killed
-        rest = re.split(r"[;&|)`\n]", cmd[m.end():], maxsplit=1)[0]
-        try:
-            words = shlex.split(rest)
-        except ValueError:  # an open quote: it belongs to a string around us
-            words = rest.split()
+        words = after(cmd[m.end():])
         letters, texts = options(words)
         full = "f" in letters or "--full" in letters
         safe = "A" in letters or "--ignore-ancestors" in letters
-        if full and not safe and texts and matches_itself(texts[0], cmd):
+        nocase = "i" in letters or "--ignore-case" in letters
+        if full and not safe and texts and matches_itself(texts[0], cmd, nocase):
             return texts[0]
     return None
+
+
+def after(rest):
+    """The words of one command: up to the first ; & | ) newline outside
+    quotes ('a|b' stays one pattern). A backtick word stays whole."""
+    lex = shlex.shlex(rest, posix=False, punctuation_chars=";&|)\n")
+    lex.whitespace = " \t"
+    lex.whitespace_split = True
+    lex.commenters = ""
+    words = []
+    try:
+        for t in lex:
+            if set(t) <= set(";&|)\n"):
+                break
+            words.append(t[1:-1] if len(t) > 1 and t[0] == t[-1] and t[0] in "'\"" else t)
+    except ValueError:  # an open quote: it belongs to a string around us
+        words = re.split(r"[;&|)\n]", rest, maxsplit=1)[0].split()
+    return words
 
 
 def bracketed(p):
@@ -99,7 +117,9 @@ def test():
                "kill $(pgrep -f myapp)", "sudo kill $(pgrep -f myapp)",
                "pgrep -f myapp | xargs -n 1 kill", "kill $(pgrep -u root -f myapp)",
                'APP=myapp; pkill -f "$APP"', "pkill -f 'myapp.*[0-9]'", "pkill -f '\\<myapp\\>'",
-               "git commit -m 'stop pkill -f myapp'"]
+               "git commit -m 'stop pkill -f myapp'", "pkill -f '[n]ode|python3 app.py'",
+               "pkill -if '[n]ode' && cd ~/Node", "pkill -f '^/bin/bash -c'",
+               "pkill -f `cat /run/app.name`", "cat > r.sh <<'EOF'\npkill -f myapp\nEOF"]
     allowed = ["pkill -f '[m]yapp'", "pkill myapp", "pkill -u root -f '[m]yscript'",
                "pkill -fu root '[m]yapp'", "pkill -P 1234 -f '[m]yapp'", "pkill -O 60 -f '[m]yapp'",
                "pkill -A -f myapp", "kill $(pgrep -A -f myapp)", "pkill -f '^python app.py'",

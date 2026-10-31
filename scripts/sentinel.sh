@@ -16,6 +16,7 @@
 # Kuma's database is only read. important=1 is a state change, status=0 is Down.
 # Settings: scripts/sentinel.env (see sentinel.env.example), or SENTINEL_ENV.
 
+export LC_ALL=C.UTF-8   # cuts like ${msg:0:200} count characters, not bytes
 kit=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$kit/logs"
 state=$kit/logs/sentinel-state

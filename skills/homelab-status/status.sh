@@ -22,7 +22,14 @@ case "$script" in '${'*) script="" ;; esac
 if [ -n "$script" ]; then
   # Under sudo the cwd may differ: resolve a relative path from the project root.
   case "$script" in /*) ;; *) script="${CLAUDE_PROJECT_DIR:-$PWD}/$script" ;; esac
-  if [ -f "$script" ]; then exec bash "$script" $busy_flag; fi
+  if [ -f "$script" ]; then
+    # It runs as root: a script or folder others can edit is a way to root.
+    for f in "$script" "$(dirname "$script")"; do
+      [ "$(stat -c %u "$f")" = 0 ] && [ -z "$(find "$f" -maxdepth 0 -perm /022)" ] \
+        || echo "warning: $f should be owned by root and not writable by others (SECURITY.md)" >&2
+    done
+    exec bash "$script" $busy_flag
+  fi
   echo "status_script $script not found"
   # --busy must not answer "nothing is working" without the project's own check.
   [ -n "$busy_flag" ] && exit 1

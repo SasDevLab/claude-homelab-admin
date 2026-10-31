@@ -42,11 +42,14 @@ Irreversible actions (deleting data, photos, backups) are asked
 Out of the box it only sees systemd jobs running now (backups, copies),
 **not** uploads or workflow runs: an agent trusting it could restart in the
 middle of a job. Either set the plugin option `status_script` to your own
-script (it must accept `--busy`), or add your applications in the `busy()`
-function: uploads to the photo
+script (it must accept `--busy`; an absolute path, the script and its
+folder owned by root and not writable by others), or add your applications
+in the `busy()` function: uploads to the photo
 library, running workflow executions, job queues. **A counter is read
 twice, a few seconds apart**: one file that arrived is not an upload in
 progress.
+*Why root: `status.sh` runs that script with sudo, so a script your user
+can edit is a way to root (SECURITY.md).*
 *Why: a check that said "busy" for any upload in the last 15 minutes held
 two restarts back because of a single test photo.*
 

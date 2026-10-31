@@ -78,14 +78,14 @@ own status script, run by `status.sh` in its place; it must accept
 `--busy` and exit 1 if something is working). Give `status_script` as an
 absolute path to a script that, with every folder above it, is owned by
 root and not writable by others: it runs as root, so `status.sh` refuses
-anything else (SECURITY.md). Set it if you
-have one: the built-in busy check sees only systemd jobs, not uploads or
-workflow runs. `model_limit` and `delegate_pattern` are values for you, the
-owner, to set: a rule of thumb for model weight, and an extended regex for
-commands that count as agent work. An invalid regex in `delegate_pattern`
-disables the reminder (the hook fails quiet and blocks nothing). The
-options are saved per user, not per project. After an install or an
-update, `/reload-plugins` loads it: `/clear` does not.
+anything else (SECURITY.md). Set it if you have one: the built-in busy
+check sees only systemd jobs, not uploads or workflow runs. `model_limit`
+and `delegate_pattern` are values for you, the owner, to set: a rule of
+thumb for model weight, and an extended regex for commands that count as
+agent work. An invalid regex in `delegate_pattern` disables the reminder
+(the hook fails quiet and blocks nothing). The options are saved per user,
+not per project. After an install or an update, `/reload-plugins` loads
+it: `/clear` does not.
 
 Or copy it into the project, if you want to edit the agents in place:
 

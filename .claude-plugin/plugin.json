@@ -44,7 +44,7 @@
     "status_script": {
       "type": "string",
       "title": "Project status script",
-      "description": "Absolute path of your own status script, e.g. /opt/homelab/status.sh, owned by root and not writable by others: it runs with sudo (see SECURITY.md). A relative path is read from the project root. When set, status.sh runs it instead of its own checks; it must accept --busy (exit 1 if something is working). Empty: the built-in checks.",
+      "description": "Absolute path of your own status script, e.g. /opt/homelab/status.sh, owned by root and not writable by others: it runs with sudo (see SECURITY.md). A relative path, or a script or folder others can edit, is refused. When set, status.sh runs it instead of its own checks; it must accept --busy (exit 1 if something is working). Empty: the built-in checks.",
       "default": ""
     }
   }

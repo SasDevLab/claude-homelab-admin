@@ -76,7 +76,9 @@ owner's channel), `delegate_pattern` and `delegate_agents` (the delegation
 reminder), `model_limit` (the model weight reminder), `status_script` (your
 own status script, run by `status.sh` in its place; it must accept
 `--busy` and exit 1 if something is working). Give `status_script` as an
-absolute path: a relative one is read from the project root. Set it if you
+absolute path to a script that, with every folder above it, is owned by
+root and not writable by others: it runs as root, so `status.sh` refuses
+anything else (SECURITY.md). Set it if you
 have one: the built-in busy check sees only systemd jobs, not uploads or
 workflow runs. `model_limit` and `delegate_pattern` are values for you, the
 owner, to set: a rule of thumb for model weight, and an extended regex for

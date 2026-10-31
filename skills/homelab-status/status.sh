@@ -19,18 +19,28 @@ busy_flag=""; [ "${1:-}" = "--busy" ] && { busy_flag="--busy"; shift; }
 script="${1:-}"
 # Unsubstituted ${user_config.*} (plugin copied into the project) = no script set.
 case "$script" in '${'*) script="" ;; esac
+# It runs as root: the script and every folder above it must be owned by
+# root and not writable by others, or anyone who can edit it becomes root.
+root_only() {
+  local f; f=$(realpath -e "$1" 2>/dev/null) || return 1
+  while :; do
+    [ "$(stat -c %u "$f")" = 0 ] && [ -z "$(find "$f" -maxdepth 0 -perm /022)" ] || return 1
+    [ "$f" = / ] && break
+    f=$(dirname "$f")
+  done
+}
 if [ -n "$script" ]; then
-  # Under sudo the cwd may differ: resolve a relative path from the project root.
-  case "$script" in /*) ;; *) script="${CLAUDE_PROJECT_DIR:-$PWD}/$script" ;; esac
-  if [ -f "$script" ]; then
-    # It runs as root: a script or folder others can edit is a way to root.
-    for f in "$script" "$(dirname "$script")"; do
-      [ "$(stat -c %u "$f")" = 0 ] && [ -z "$(find "$f" -maxdepth 0 -perm /022)" ] \
-        || echo "warning: $f should be owned by root and not writable by others (SECURITY.md)" >&2
-    done
-    exec bash "$script" $busy_flag
+  case "$script" in
+    /*) real=$(realpath -e "$script" 2>/dev/null) ;;
+    *) real="" ;;
+  esac
+  if [ -z "$real" ]; then
+    echo "status_script $script not found or not an absolute path"
+  elif ! root_only "$real"; then
+    echo "status_script $script refused: it and every folder above it must be owned by root and not writable by others (SECURITY.md)"
+  else
+    exec bash "$real" $busy_flag
   fi
-  echo "status_script $script not found"
   # --busy must not answer "nothing is working" without the project's own check.
   [ -n "$busy_flag" ] && exit 1
   echo "using the built-in checks"

@@ -55,11 +55,13 @@ case "$max" in
     # briefly on an empty one. Only after 10 runs in a row is it taken as the new
     # database; before that, a run would replay or skip Downs.
     behind=$kit/logs/sentinel-kuma-behind
+    # The file holds the run count and Kuma's max at the first run behind, so the
+    # Downs recorded during the wait are still sent.
     if [ "$id" -gt "$max" ]; then
-      b=$(( $(cat "$behind" 2>/dev/null || echo 0) + 1 ))
-      if [ "$b" -ge 10 ]; then log "Kuma ($max) behind the state ($id) for 10 runs: new database, starting from $max"; id=$max; save "$max"; rm -f "$behind"
-      else [ "$dry" = 1 ] || echo "$b" > "$behind"; log "Kuma ($max) behind the state ($id), run $b of 10: its Downs wait"; max=""; fi
-    else rm -f "$behind"; fi
+      { read -r b first < "$behind"; } 2>/dev/null; b=$(( ${b:-0} + 1 )); first=${first:-$max}
+      if [ "$b" -ge 10 ]; then log "Kuma ($max) behind the state ($id) for 10 runs: new database, Downs from $first on"; id=$first; save "$first"; rm -f "$behind"
+      else [ "$dry" = 1 ] || echo "$b $first" > "$behind"; log "Kuma ($max) behind the state ($id), run $b of 10: its Downs wait"; max=""; fi
+    else rm -f "$behind"; fi   # shortcut: a new database that passes the old state within 10 runs loses its Downs below it
   ;;
 esac
 case "$max" in
@@ -126,9 +128,11 @@ $text
 END-$fence
 Answer only 'SENT <name>' if SendMessage succeeded, otherwise 'NO-SESSION'. Do nothing else."
 out=$(mktemp)
-# The parent session's CLAUDE* variables go, not the user's own (CLAUDE_BIN, CLAUDE_CONFIG_DIR).
-bin=$CLAUDE_BIN
-( unset $(compgen -e | grep '^CLAUDE' | grep -v -x -e CLAUDE_BIN -e CLAUDE_CONFIG_DIR); cd /tmp && timeout -k 10 170 "$bin" -p "$ask" --model haiku \
+# Only the variables that mark a parent session go (measured in a session:
+# CLAUDECODE, CLAUDE_PID, CLAUDE_EFFORT, CLAUDE_CODE_*); login and provider stay.
+parent=$(compgen -e | grep -E '^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CODE_.*)$' |
+  grep -v -E '^CLAUDE_CODE_(OAUTH_TOKEN|USE_.*|SKIP_.*)$')
+( unset $parent; cd /tmp && timeout -k 10 170 "${CLAUDE_BIN:-claude}" -p "$ask" --model haiku \
     --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
 case $? in 124|137) result=timeout ;; esac
 result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"

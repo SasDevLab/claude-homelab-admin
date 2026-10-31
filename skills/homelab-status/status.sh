@@ -18,7 +18,8 @@ busy() {
   # service in "activating".
   while read -r unit _ _ sub _; do
     # auto-restart is a crash loop waiting to retry, not work in progress.
-    [ -n "$unit" ] && [ "$sub" != auto-restart ] && { echo "  working: $unit (systemd job running now)"; n=$((n+1)); }
+    # sentinel.service runs every minute and may be the one that called you: not work.
+    [ -n "$unit" ] && [ "$sub" != auto-restart ] && [ "$unit" != sentinel.service ] && { echo "  working: $unit (systemd job running now)"; n=$((n+1)); }
   done < <(systemctl list-units --type=service --state=activating --no-legend --plain 2>/dev/null)
   # Add your own checks here: uploads to the photo library, running
   # workflow executions, job queues. For a counter, read it twice a few

@@ -28,6 +28,19 @@ SHELLS = {"bash", "sh", "dash", "zsh"}  # `bash -c '<code>'`: the code is read t
 KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "{", "!"}
 
 
+def value_next(o, takes):
+    """True if option o wants its value in the next word. A short cluster
+    (-fu, -iu) stops at the first letter that takes a value: if that letter
+    ends the cluster the value is the next word, otherwise it is attached
+    (-uroot, -c3)."""
+    if o.startswith("--"):
+        return "=" not in o and o in takes
+    for j, ch in enumerate(o[1:]):
+        if ch in takes:
+            return j == len(o) - 2
+    return False
+
+
 def options(words):
     """Split the words after pkill into option flags and free texts.
     The value of an option (`-u root`, `-fu root`, `-uroot`) is neither."""
@@ -65,10 +78,7 @@ def command_start(words):
         elif w in WRAPPERS:
             takes, i = WRAPPERS[w], i + 1
             while i < len(words) and words[i].startswith("-") and words[i] != "-":
-                o = words[i]
-                # -u root, -iu root, --signal KILL: the value is the next word; -oL, -c3: attached
-                value_next = o in takes if o.startswith("--") else (o[-1] in takes and len(o) >= 2)
-                i += 2 if value_next else 1
+                i += 2 if value_next(words[i], takes) else 1
         elif re.fullmatch(r"\w+=\S*|\d+(\.\d+)?[smhd]?", w):  # env VAR=x, timeout 5
             i += 1
         else:
@@ -80,8 +90,10 @@ def pattern(cmd):
     """The first text searched by pkill -f that can match the shell running it."""
     # Quote-aware split: a `;` inside a string does not separate commands.
     # commenters="": a `#` (in a URL, a comment) must not hide what follows.
+    # A heredoc body is text written somewhere, not commands.
+    code = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", "", cmd, flags=re.S)
     # Backticks and $( start a command too.
-    code = cmd.replace("\n", " ; ").replace("`", " ; ").replace("$(", " ; ")
+    code = code.replace("\n", " ; ").replace("`", " ; ").replace("$(", " ; ")
     lex = shlex.shlex(code, posix=True, punctuation_chars=";&|()")
     lex.whitespace_split = True
     lex.commenters = ""
@@ -98,13 +110,21 @@ def pattern(cmd):
             cur.append(t)
     pieces.append(cur)
     for words in pieces:
+        # "$(pkill ...)" inside double quotes stays one word: read what is in it.
+        for w in words:
+            if " ; " in w:
+                found = pattern(w.replace(" ; ", "\n"))
+                if found:
+                    return found
         # pkill counts only as a command, not inside a string (commit message, echo).
         i = command_start(words)
         if i >= len(words):
             continue
         name = words[i].rsplit("/", 1)[-1]
-        if name in SHELLS and "-c" in words[i + 1:i + 3]:
-            inner = words[words.index("-c", i) + 1:][:1]
+        c = next((k for k in range(i + 1, min(i + 3, len(words)))
+                  if re.fullmatch(r"-[a-z]*c[a-z]*", words[k])), None)  # -c, -lc, -ec
+        if name in SHELLS and c is not None:
+            inner = words[c + 1:c + 2]
             found = pattern(inner[0]) if inner else None
             if found:
                 return found
@@ -120,6 +140,9 @@ def pattern(cmd):
 
 def matches_itself(p, cmd):
     """Would pkill's regex p match the shell running cmd? Its command line holds cmd."""
+    if re.search(r"\$[{\w]", p):  # "$APP": the shell fills it in, we cannot know: block
+        return True
+    p = p.replace("\\<", "\\b").replace("\\>", "\\b")  # ERE word edges
     try:
         return re.search(p, cmd) is not None
     except re.error:  # not a Python regex: fall back to the bracket rule
@@ -172,6 +195,15 @@ def test():
     assert pattern("ionice -c3 pkill -f myapp") == "myapp"
     assert pattern("pkill -f 'myapp.*[0-9]'") == "myapp.*[0-9]"
     assert pattern("pkill -f 'myap[p]'") is None
+    assert pattern("sudo -uroot pkill -f myapp") == "myapp"
+    assert pattern('out="$(pkill -f myapp)"') == "myapp"
+    assert pattern('echo "`pkill -f myapp`"') == "myapp"
+    assert pattern("bash -lc 'pkill -f myapp'") == "myapp"
+    assert pattern("cat > r.sh <<'EOF'\npkill -f myapp\nEOF") is None
+    assert pattern("cat > r.sh <<EOF\npkill -f myapp\nEOF\npkill -f other") == "other"
+    assert pattern('APP=myapp; pkill -f "$APP"') == "$APP"
+    assert pattern("pkill -f '\\<myapp\\>'") == "\\<myapp\\>"
+    assert pattern("git commit -m \"stop pkill -f myapp\"") is None
     assert pattern("pkill -U root -f myapp") == "myapp"
     assert pattern("pkill -P 1234 -f '[m]yapp'") is None
     assert pattern("pkill -F /run/x.pid -f myapp") == "myapp"

@@ -35,7 +35,8 @@ How you work:
    and you go back.
 4. You check that the monitor is back Up, or you say it is not.
 5. You report to the owner's chat in three lines, written in
-   ${user_config.owner_language}: what happened, what you did, how it is
+   ${user_config.owner_language} (if that text is still literal, unsubstituted,
+   write in English): what happened, what you did, how it is
    now. One message only, when the work is done.
    Send it with
    `NOTIFY_NOQUEUE=1 .claude/scripts/notify.sh <system topic> "<text>"`

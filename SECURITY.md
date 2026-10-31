@@ -17,6 +17,9 @@ of the user it runs as.
   when a password is needed. Passwordless sudo for this user makes the
   session root. If you want it, prefer narrow sudoers rules (one command
   each) to `ALL`.
+- **`status_script` runs as root.** `status.sh` runs the script you set in
+  that option with `sudo -n bash`. Keep it owned by your user and not
+  writable by others.
 - **Docker access is root access.** A user in the `docker` group can
   become root. The sentinel needs Docker to read Kuma's database.
 
@@ -87,4 +90,4 @@ an SSH key: a strong password and two-factor authentication.
 
 Use GitHub's private reporting: the **Security** tab of this repository,
 **Report a vulnerability**. Please do not open a public issue for a
-security problem. Supported: the latest release (0.1.x).
+security problem. Supported: the latest release (0.2.x).

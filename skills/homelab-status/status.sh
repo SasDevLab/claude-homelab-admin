@@ -16,9 +16,17 @@ attention=()
 
 busy_flag=""; [ "${1:-}" = "--busy" ] && { busy_flag="--busy"; shift; }
 # The project's own script sees what this one cannot (uploads, workflows).
-if [ -n "${1:-}" ]; then
-  if [ -f "$1" ]; then exec bash "$1" $busy_flag; fi
-  echo "status_script $1 not found: using the built-in checks" >&2
+script="${1:-}"
+# Unsubstituted ${user_config.*} (plugin copied into the project) = no script set.
+case "$script" in '${'*) script="" ;; esac
+if [ -n "$script" ]; then
+  # Under sudo the cwd may differ: resolve a relative path from the project root.
+  case "$script" in /*) ;; *) script="${CLAUDE_PROJECT_DIR:-$PWD}/$script" ;; esac
+  if [ -f "$script" ]; then exec bash "$script" $busy_flag; fi
+  echo "status_script $script not found"
+  # --busy must not answer "nothing is working" without the project's own check.
+  [ -n "$busy_flag" ] && exit 1
+  echo "using the built-in checks"
 fi
 
 # Something is working right now. Prints one line per job, returns the count.

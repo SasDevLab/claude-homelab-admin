@@ -42,17 +42,33 @@ the rule and its reason, and drops the house's own data.
 | `packs/` | optional trap packs, one skill per tool: `homelab-n8n` (n8n 2.x workflows, Code nodes, Telegram, a local model via Ollama), `homelab-host` (systemd, Docker, sudo, reboots, the session restarting itself, MCP servers, long commands) |
 | `examples/` | `settings.json` wiring the hooks, `CLAUDE.example.md` (the template filled in for an invented house) |
 
+## Requirements
+
+- Claude Code on the home server itself, in a session that stays open
+  (tested with 2.1.312). Remote Control lets you reach it from elsewhere.
+- Linux with `bash`. The hooks need `python3`; the sentinel needs systemd
+  and `curl`.
+- For the sentinel: Uptime Kuma in Docker, with its SQLite database (the
+  default).
+- The agents name an example stack (Home Assistant, n8n, Immich, Authelia,
+  Caddy). None of it is required: keep the agents for what you run.
+
 ## Install
 
-As a Claude Code plugin (2.1.275 or later), from your homelab project:
+As a Claude Code plugin, from your homelab project:
 
 ```
-/plugin install homelab-admin --marketplace SasDevLab/claude-homelab-admin
+/plugin marketplace add SasDevLab/claude-homelab-admin
+/plugin install homelab-admin@homelab-admin
 ```
 
 This brings the agents (`homelab-admin:guard`, ...), the skills
-(`/homelab-admin:homelab-init`, ...) and the hooks. To try it without
-installing: `claude --plugin-dir <kit folder>`.
+(`/homelab-admin:homelab-init`, ...) and the hooks. Always-on cost,
+measured with `claude plugin details`: about 800 tokens per session; a
+skill or an agent costs 150-1,800 more when it runs. To try it without
+installing: `claude --plugin-dir <kit folder>`. To remove it:
+`/plugin uninstall homelab-admin@homelab-admin`, then
+`/plugin marketplace remove homelab-admin`.
 
 Or copy it into the project, if you want to edit the agents in place:
 
@@ -107,7 +123,9 @@ script alert ──> notify.sh ──> queue ──┘                      │
   `. notify.sh` and `notify <topic> "<text>"`. Only the system topic wakes
   the session.
 
-Setup (as the user who runs Claude Code):
+Setup (as the user who runs Claude Code). The plugin does not install
+the sentinel: `<kit>` is a clone of this repository
+(`git clone https://github.com/SasDevLab/claude-homelab-admin`).
 
 ```sh
 cd "$P/.claude"

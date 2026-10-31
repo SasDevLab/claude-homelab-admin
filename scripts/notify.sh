@@ -45,6 +45,7 @@ _post() {
 }
 
 notify() {
+  local LC_ALL=C.UTF-8   # ${text:0:N} counts characters, not bytes: no letter cut in half
   local topic=$1 text=$2 via=${NOTIFY_VIA:-telegram} secret code thread=
   # Only a number is a Telegram topic; a word (SYSTEM_TOPIC=system) only marks what wakes the session.
   [[ $topic =~ ^[0-9]+$ ]] && thread=$topic

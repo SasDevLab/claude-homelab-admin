@@ -36,7 +36,7 @@ while [ $# -gt 0 ]; do
 done
 case "$id" in ''|*[!0-9-]*) echo "--from wants a number" >&2; exit 2;; esac
 
-k() { $DOCKER exec "$KUMA_CONTAINER" sqlite3 -cmd '.timeout 5000' -separator "$(printf '\037')" "$KUMA_DB" "$1"; }
+k() { timeout 20 $DOCKER exec "$KUMA_CONTAINER" sqlite3 -cmd '.timeout 5000' -separator "$(printf '\037')" "$KUMA_DB" "$1"; }
 save() { [ "$dry" = 1 ] || echo "$1" > "$state"; }
 BATCH=20          # alerts per run; the rest waits for the next run (a huge prompt makes claude -p fail)
 MAX_FAILS=30      # runs in a row with no delivery before a batch is dropped (logged), so one bad batch cannot block forever
@@ -59,9 +59,9 @@ case "$max" in
     # Downs recorded during the wait are still sent.
     if [ "$id" -gt "$max" ]; then
       { read -r b first < "$behind"; } 2>/dev/null; b=$(( ${b:-0} + 1 )); first=${first:-$max}
-      if [ "$b" -ge 10 ]; then log "Kuma ($max) behind the state ($id) for 10 runs: new database, Downs from $first on"; id=$first; save "$first"; rm -f "$behind"
+      if [ "$b" -ge 10 ]; then log "Kuma ($max) behind the state ($id) for 10 runs: new database, Downs from $first on"; id=$first; save "$first"; [ "$dry" = 1 ] || rm -f "$behind"
       else [ "$dry" = 1 ] || echo "$b $first" > "$behind"; log "Kuma ($max) behind the state ($id), run $b of 10: its Downs wait"; max=""; fi
-    else rm -f "$behind"; fi   # shortcut: a new database that passes the old state within 10 runs loses its Downs below it
+    else [ "$dry" = 1 ] || rm -f "$behind"; fi   # shortcut: a new database that passes the old state within 10 runs loses its Downs below it
   ;;
 esac
 case "$max" in

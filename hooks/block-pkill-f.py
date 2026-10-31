@@ -14,12 +14,15 @@ import shlex
 import sys
 
 # pkill options that take a value: short letters, and long names.
-SHORT_VALUE = set("gGPstuUF")
+SHORT_VALUE = set("gGPstuUFOqr")
 LONG_VALUE = {"--signal", "--pidfile", "--ns", "--nslist", "--cgroup", "--euid", "--uid",
-              "--group", "--pgroup", "--session", "--terminal", "--parent", "--user"}
+              "--group", "--pgroup", "--session", "--terminal", "--parent", "--user",
+              "--older", "--queue", "--runstates", "--env"}
 # Commands that run the next word as a command, and the short option letters
 # (or long options) that take a value as the next word.
-WRAPPERS = {"sudo": set("ugCDhprtU"), "doas": set("uC"), "timeout": {"s", "k", "--signal", "--kill-after"},
+WRAPPERS = {"sudo": set("ugCDhprtU") | {"--user", "--group", "--chdir", "--host", "--prompt",
+                                          "--role", "--type", "--close-from", "--other-user"},
+            "doas": set("uC"), "timeout": {"s", "k", "--signal", "--kill-after"},
             "nice": {"n"}, "ionice": set("cnp"), "env": {"u", "C"}, "nohup": set(), "exec": {"a"},
             "time": set(), "command": set(), "setsid": set(), "stdbuf": set("ioe"),
             "watch": {"n"}, "xargs": set("nIPLdaEs")}
@@ -28,17 +31,21 @@ SHELLS = {"bash", "sh", "dash", "zsh"}  # `bash -c '<code>'`: the code is read t
 KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "{", "!"}
 
 
-def value_next(o, takes):
-    """True if option o wants its value in the next word. A short cluster
-    (-fu, -iu) stops at the first letter that takes a value: if that letter
-    ends the cluster the value is the next word, otherwise it is attached
-    (-uroot, -c3)."""
+def cluster(o, takes):
+    """(option letters, value in the next word?) for one option word. A short
+    cluster (-fu, -iu) stops at the first letter that takes a value: if that
+    letter ends the cluster the value is the next word, otherwise it is
+    attached (-uroot, -c3) and is not an option letter."""
     if o.startswith("--"):
-        return "=" not in o and o in takes
+        return o, "=" not in o and o in takes
     for j, ch in enumerate(o[1:]):
         if ch in takes:
-            return j == len(o) - 2
-    return False
+            return o[:j + 2], j == len(o) - 2
+    return o, False
+
+
+def value_next(o, takes):
+    return cluster(o, takes)[1]
 
 
 def options(words):
@@ -48,21 +55,12 @@ def options(words):
     for r in words:
         if skip:
             skip = False
-        elif r.startswith("--"):
-            flags.append(r)
-            skip = "=" not in r and r in LONG_VALUE
         elif r.startswith("-") and len(r) > 1:
-            letters = r[1:]
-            if re.fullmatch(r"[0-9]+|[A-Z][A-Z0-9]+", letters):  # a signal: -9, -TERM, -HUP (-U, -P are options)
+            if re.fullmatch(r"-([0-9]+|[A-Z][A-Z0-9]+)", r):  # a signal: -9, -TERM, -HUP (-U, -P are options)
                 flags.append(r)
                 continue
-            kept = ""
-            for j, ch in enumerate(letters):
-                kept += ch
-                if ch in SHORT_VALUE:
-                    skip = j == len(letters) - 1  # value in the next word, or attached
-                    break
-            flags.append("-" + kept)
+            kept, skip = cluster(r, SHORT_VALUE | LONG_VALUE)
+            flags.append(kept)
         else:
             texts.append(r)
     return flags, texts
@@ -90,16 +88,35 @@ def pattern(cmd):
     """The first text searched by pkill -f that can match the shell running it."""
     # Quote-aware split: a `;` inside a string does not separate commands.
     # commenters="": a `#` (in a URL, a comment) must not hide what follows.
-    # A heredoc body is text written somewhere, not commands.
-    code = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", "", cmd, flags=re.S)
-    # Backticks and $( start a command too.
-    code = code.replace("\n", " ; ").replace("`", " ; ").replace("$(", " ; ")
-    lex = shlex.shlex(code, posix=True, punctuation_chars=";&|()")
-    lex.whitespace_split = True
-    lex.commenters = ""
-    try:
-        tokens = list(lex)
-    except ValueError:
+    # A heredoc body is text written somewhere, not commands, unless a shell reads it.
+    def body(m):
+        line = cmd[:m.start()].rsplit("\n", 1)[-1]
+        shell = any(w.rsplit("/", 1)[-1] in SHELLS for w in line.split())  # bash, /bin/sh; not r.sh
+        return m.group(0).replace("<<", " ; ", 1) if shell else ""
+    code = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", body, cmd, flags=re.S)
+    # Backticks and $( start a command too, but not inside single quotes.
+    out, quoted = [], False
+    for k, ch in enumerate(code):
+        if ch == "'" and (k == 0 or code[k - 1] != "\\" or quoted):
+            quoted = not quoted
+        if not quoted and (ch == "`" or code.startswith("$(", k)):
+            out.append(" ; ")
+            continue
+        out.append(" " if not quoted and k and code[k - 1] == "$" and ch == "(" else ch)
+    code = "".join(out)
+    tokens = None
+    # "don't" in a comment is an open quote for shlex: if it fails, drop comments line by line.
+    no_comments = "\n".join(re.sub(r"(^|\s)#.*", "", line) for line in code.split("\n"))
+    for src in (code, no_comments):
+        lex = shlex.shlex(src.replace("\n", " ; "), posix=True, punctuation_chars=";&|()")
+        lex.whitespace_split = True
+        lex.commenters = ""
+        try:
+            tokens = list(lex)
+            break
+        except ValueError:
+            continue
+    if tokens is None:
         return None
     pieces, cur = [], []
     for t in tokens:
@@ -121,8 +138,13 @@ def pattern(cmd):
         if i >= len(words):
             continue
         name = words[i].rsplit("/", 1)[-1]
-        c = next((k for k in range(i + 1, min(i + 3, len(words)))
-                  if re.fullmatch(r"-[a-z]*c[a-z]*", words[k])), None)  # -c, -lc, -ec
+        c = None
+        for k in range(i + 1, len(words)):  # -c, -lc, bash -e -u -c
+            if not words[k].startswith("-"):
+                break
+            if re.fullmatch(r"-[a-z]*c[a-z]*", words[k]):
+                c = k
+                break
         if name in SHELLS and c is not None:
             inner = words[c + 1:c + 2]
             found = pattern(inner[0]) if inner else None
@@ -133,8 +155,22 @@ def pattern(cmd):
             continue
         flags, texts = options(words[i + 1:])
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
-        if full and texts and matches_itself(texts[0], cmd):
+        safe = any("A" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--ignore-ancestors" in flags
+        if full and not safe and texts and matches_itself(texts[0], cmd):
             return texts[0]
+    return kill_pgrep(cmd)
+
+
+def kill_pgrep(cmd):
+    """`kill $(pgrep -f X)`, `pgrep -f X | xargs kill`: pgrep leaves out only
+    itself, so its parent shell is killed the same way."""
+    if not re.search(r"(?:^|[;&|(\n]|\$\(|\bdo|\bxargs(?:\s+-\S+)*)\s*kill\b", cmd):
+        return None
+    for m in re.finditer(r"\bpgrep((?:\s+-\S+)+)\s+(['\"]?)([^\s'\")]+)", cmd):
+        flags, text = m.group(1).split(), m.group(3)
+        if any(("f" in f.lstrip("-") and not f.startswith("--")) or f == "--full" for f in flags) \
+                and matches_itself(text, cmd):
+            return text
     return None
 
 
@@ -204,6 +240,16 @@ def test():
     assert pattern('APP=myapp; pkill -f "$APP"') == "$APP"
     assert pattern("pkill -f '\\<myapp\\>'") == "\\<myapp\\>"
     assert pattern("git commit -m \"stop pkill -f myapp\"") is None
+    assert pattern("sudo bash <<'EOF'\npkill -f myapp\nEOF") == "myapp"
+    assert pattern("ls # don't touch\npkill -f myapp") == "myapp"
+    assert pattern("kill $(pgrep -f myapp)") == "myapp"
+    assert pattern("pgrep -f myapp | xargs kill") == "myapp"
+    assert pattern("kill $(pgrep -f '[m]yapp')") is None
+    assert pattern("sudo --user root pkill -f myapp") == "myapp"
+    assert pattern("bash -e -u -c 'pkill -f myapp'") == "myapp"
+    assert pattern("pkill -O 60 -f '[m]yapp'") is None
+    assert pattern("pkill -A -f myapp") is None
+    assert pattern("git commit -m 'hook: block `pkill -f myapp` self-kill'") is None
     assert pattern("pkill -U root -f myapp") == "myapp"
     assert pattern("pkill -P 1234 -f '[m]yapp'") is None
     assert pattern("pkill -F /run/x.pid -f myapp") == "myapp"

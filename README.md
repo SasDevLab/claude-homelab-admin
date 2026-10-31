@@ -148,6 +148,11 @@ The kit gives the session no permission of its own, but an administrator
 has the power of its user. What runs by itself, where secrets go, and how
 to report a problem: [SECURITY.md](SECURITY.md).
 
+## Support
+
+The kit is free. If it saves you an evening, you can buy me a coffee on
+[Ko-fi](https://ko-fi.com/sasdevlab).
+
 ## License
 
 MIT, see `LICENSE`.

@@ -45,7 +45,7 @@ the rule and its reason, and drops the house's own data.
 ## Requirements
 
 - Claude Code on the home server itself, in a session that stays open
-  (tested with 2.1.312). Remote Control lets you reach it from elsewhere.
+  (tested with Claude Code 2.1.312). Remote Control lets you reach it from elsewhere.
 - Linux with `bash`. The hooks need `python3`; the sentinel needs systemd
   and `curl`.
 - For the sentinel: Uptime Kuma in Docker, with its SQLite database (the

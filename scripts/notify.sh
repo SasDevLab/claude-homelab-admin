@@ -87,8 +87,10 @@ notify() {
     discord)
       # Discord takes at most 2000 characters.
       code=$(_post "$secret" -H 'Content-Type: application/json' \
-        --data-binary "{\"content\":$(_json "${text:0:2000}")}") ;;
+        --data-binary "{\"content\":$(_json "${text:0:2000}"),\"allowed_mentions\":{\"parse\":[]}}") ;;   # no @everyone from untrusted text
     slack)
+      # Slack's own escaping: <!channel> is shown, not run.
+      text=${text//\&/\&amp;}; text=${text//</\&lt;}; text=${text//>/\&gt;}   # \& : a bare & in the replacement means the match in bash 5.2
       code=$(_post "$secret" -H 'Content-Type: application/json' \
         --data-binary "{\"text\":$(_json "$text")}") ;;
     email)

@@ -55,9 +55,10 @@ fi
 
 echo "DISKS"
 while read -r use mnt; do
+  [[ $use =~ ^[0-9]+%$ ]] || continue   # df shows - for some filesystems
   echo "  $use $mnt"
   [ "${use%\%}" -ge 90 ] && attention+=("disk $mnt at $use")
-done < <(df -P -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null | awk 'NR>1 {print $5, $6}')
+done < <(timeout 10 df -P -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null | awk 'NR>1 {u=$5; $1=$2=$3=$4=$5=""; sub(/^ +/,""); print u, $0}')   # timeout: a stale network mount must not hang
 
 if command -v docker >/dev/null; then
   err=$(mktemp)

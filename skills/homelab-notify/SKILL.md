@@ -30,9 +30,11 @@ Rules for the whole run:
 `ls .claude/scripts/notify.sh .claude/scripts/sentinel.env` from the
 project root (one `ls` per file if one is missing).
 
-- `notify.sh` missing → the scripts are not copied yet. The kit root is
-  two levels above this skill's base directory. Propose
-  `mkdir -p .claude && cp -r <kit>/scripts .claude/` and wait for yes.
+- `notify.sh` missing → the scripts are not copied yet. With the copy
+  install they are in `<project>/.claude/scripts/`; with the plugin, the
+  sentinel scripts come from a clone of the repository (README, "The
+  sentinel"). Propose `mkdir -p .claude && cp -r <clone>/scripts .claude/`
+  and wait for yes.
 - `sentinel.env` missing → propose copying `sentinel.env.example` to it,
   and wait for yes.
 

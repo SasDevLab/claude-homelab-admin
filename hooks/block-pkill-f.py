@@ -81,6 +81,7 @@ def pattern(cmd):
 def after(rest):
     """The words of one command: up to the first ; & | ) newline outside
     quotes ('a|b' stays one pattern). A backtick word stays whole."""
+    rest = re.sub(r"(?<!\S)(\d*[<>]&\d+|\d*[<>]+\s*\S+)", "", rest)  # 2>&1, >&2, >/dev/null: not words, and their & is no separator
     lex = shlex.shlex(rest, posix=False, punctuation_chars=";&|)\n")
     lex.whitespace = " \t"
     lex.whitespace_split = True
@@ -120,14 +121,14 @@ def test():
                'APP=myapp; pkill -f "$APP"', "pkill -f 'myapp.*[0-9]'", "pkill -f '\\<myapp\\>'",
                "git commit -m 'stop pkill -f myapp'", "pkill -f '[n]ode|python3 app.py'",
                "pkill -if '[n]ode' && cd ~/Node", "pkill -f '^/bin/bash -c'",
-               "pkill -f `cat /run/app.name`", "cat > r.sh <<'EOF'\npkill -f myapp\nEOF"]
+               "pkill -f `cat /run/app.name`", "pkill >/dev/null 2>&1 -f myapp", "pkill 2>&1 -f myapp", "cat > r.sh <<'EOF'\npkill -f myapp\nEOF"]
     allowed = ["pkill -f '[m]yapp'", "pkill myapp", "pkill -u root -f '[m]yscript'",
                "pkill -fu root '[m]yapp'", "pkill -P 1234 -f '[m]yapp'", "pkill -O 60 -f '[m]yapp'",
                "pkill -A -f myapp", "kill $(pgrep -A -f myapp)", "pkill -f '^python app.py'",
                "kill $(pgrep -f '[m]yapp')", "pgrep -d ' ' -f '[m]yapp' | xargs kill",
                "pgrep -f myapp", "killall -r 'app.*'", "ls ~/pkill-notes.txt",
                "git commit -m 'block pkill -f [m]yapp'", "pkill >/dev/null -f '[m]yapp'",
-               "pkill -fx myapp"]
+               "pkill -fx myapp", "pkill 2>&1 -f '[m]yapp'"]
     for c in blocked:
         assert pattern(c), c
     for c in allowed:

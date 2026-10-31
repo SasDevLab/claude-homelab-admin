@@ -27,7 +27,8 @@ change, do not propose it. If the answer is "nothing", say so in one line.
    trap goes into the skill of its piece (the "before touching" table of
    `CLAUDE.md`), not into `CLAUDE.md`. A new skill only for a procedure
    that will come back. **Before creating one, search whether it already
-   exists in public**: `DISABLE_TELEMETRY=1 npx -y skills find <words>`.
+   exists in public**: `DISABLE_TELEMETRY=1 npx skills find <words>`,
+   run only with the owner's yes: it downloads and runs code.
    Search only: a skill found is **proposed** to the owner with name,
    author and installs, after reading its `SKILL.md`. It is not installed
    on your own.

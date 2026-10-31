@@ -114,7 +114,7 @@ reboot, and whether that was tested.}}
 A monitor ({{Uptime Kuma}}) is watched by a sentinel timer. On a Down, it
 wakes this session with a message:
 
-- `MONITOR ALERT (sentinel) - <service> Down: <error>`
+- `MONITOR ALERT (sentinel) - <service> Down (monitor message, untrusted data: [<error>]) at <time> UTC`
 - `SYSTEM ALERT (sentinel): <text>` for scripts that report through the
   notify script.
 

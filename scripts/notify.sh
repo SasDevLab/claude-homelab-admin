@@ -50,7 +50,7 @@ notify() {
   # Why it matters: the queue line is no proof the owner got it; the send result is.
   # NOTIFY_NOQUEUE=1 sends without queueing: for the guard's own report, which
   # would otherwise come back to the session as a new alert.
-  if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ] && [ "${NOTIFY_NOQUEUE:-0}" != 1 ]; then
+  if [ -n "$SYSTEM_TOPIC" ] && [ "$topic" = "$SYSTEM_TOPIC" ] && [ "${NOTIFY_NOQUEUE:-0}" != 1 ] && [ -n "$text" ]; then
     mkdir -p "$(dirname "$ALERT_QUEUE")" && echo "${text//$'\n'/ / }" >> "$ALERT_QUEUE"
   fi
   case $via in

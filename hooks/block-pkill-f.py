@@ -13,11 +13,39 @@ import shlex
 import sys
 
 
-# Options that take a value as the next word (pkill/pgrep, killall).
-ARG_OPTS = {"-g", "-G", "-P", "-s", "-t", "-u", "-U", "-F", "--signal", "--pidfile",
-            "--ns", "--nslist", "--cgroup", "--euid", "--uid", "--group", "--pgroup",
-            "--session", "--terminal", "--parent", "--user", "-o", "-y",
-            "--older-than", "--younger-than"}
+# Options that take a value: short letters per command (for pkill -o is
+# "oldest" and takes none), long names for both.
+SHORT_VALUE = {"pkill": set("gGPstuUF"), "killall": set("suoyn")}
+LONG_VALUE = {"--signal", "--pidfile", "--ns", "--nslist", "--cgroup", "--euid", "--uid",
+              "--group", "--pgroup", "--session", "--terminal", "--parent", "--user",
+              "--older-than", "--younger-than"}
+
+
+def options(cmd, words):
+    """Split the words after pkill/killall into option flags and free texts.
+    The value of an option (`-u root`, `-fu root`, `-uroot`) is neither."""
+    flags, texts, skip = [], [], False
+    for r in words:
+        if skip:
+            skip = False
+        elif r.startswith("--"):
+            flags.append(r)
+            skip = "=" not in r and r in LONG_VALUE
+        elif r.startswith("-") and len(r) > 1:
+            letters = r[1:]
+            if re.fullmatch(r"[A-Z0-9]+", letters):  # a signal: -9, -TERM, -HUP
+                flags.append(r)
+                continue
+            kept = ""
+            for j, ch in enumerate(letters):
+                kept += ch
+                if ch in SHORT_VALUE[cmd]:
+                    skip = j == len(letters) - 1  # value in the next word, or attached
+                    break
+            flags.append("-" + kept)
+        else:
+            texts.append(r)
+    return flags, texts
 
 
 def pattern(cmd):
@@ -49,15 +77,7 @@ def pattern(cmd):
         p = words[i]
         if p.rsplit("/", 1)[-1] not in ("pkill", "killall"):
             continue
-        flags, texts, skip = [], [], False
-        for r in words[i + 1:]:
-            if skip:
-                skip = False  # the value of the option before it, not the pattern
-            elif r.startswith("-"):
-                flags.append(r)
-                skip = r in ARG_OPTS
-            else:
-                texts.append(r)
+        flags, texts = options("killall" if p.endswith("killall") else "pkill", words[i + 1:])
         full = any("f" in f.lstrip("-") and not f.startswith("--") for f in flags) or "--full" in flags
         regex = p.endswith("killall") and any(f in ("-r", "--regexp") for f in flags)
         if (full or regex) and texts and "[" not in texts[0]:
@@ -74,6 +94,13 @@ def test():
     assert pattern("pkill -u root -f '[m]yscript'") is None
     assert pattern("pkill -u root -f myscript") == "myscript"
     assert pattern("killall -u bob -r 'app.*'") == "app.*"
+    assert pattern("pkill -o -f myapp") == "myapp"
+    assert pattern("pkill -fu root myapp") == "myapp"
+    assert pattern("pkill -uroot -f myapp") == "myapp"
+    assert pattern("pkill -STOP -f myapp") == "myapp"
+    assert pattern("pkill --signal TERM -f myapp") == "myapp"
+    assert pattern("pkill -fu root '[m]yapp'") is None
+    assert pattern("killall -o 1h -r 'app.*'") == "app.*"
     assert pattern("git commit -m 'stop pkill -f myapp'") is None
     assert pattern("echo x | pkill --full myapp") == "myapp"
     print("ok")

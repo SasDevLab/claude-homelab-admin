@@ -66,10 +66,11 @@ esac
 queue=$ALERT_QUEUE; backlog=$queue.backlog; fails=$kit/logs/sentinel-fails
 if [ "$dry" = 1 ]; then taken=$(cat "$backlog" "$queue" 2>/dev/null | head -n "$BATCH")
 else
+  [ -f "$queue.moving" ] && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"   # a run killed mid-move
   mv "$queue" "$queue.moving" 2>/dev/null && cat "$queue.moving" >> "$backlog" && rm -f "$queue.moving"
   taken=$(head -n "$BATCH" "$backlog" 2>/dev/null)
 fi
-n_taken=$(printf '%s' "$taken" | grep -c .)
+n_taken=0; [ -n "$taken" ] && n_taken=$(printf '%s\n' "$taken" | wc -l)
 
 delivered() {
   [ -n "$new_id" ] && save "$new_id"
@@ -82,7 +83,7 @@ if [ -z "$rows" ] && [ "$n_taken" = 0 ]; then [ "$dry" = 1 ] || delivered; exit 
 alerts=(); text=""
 while IFS= read -r r; do
   [ -n "$r" ] || continue
-  a="SYSTEM ALERT (sentinel): $r"; alerts+=("$a"); text+="$a"$'\n'
+  a="SYSTEM ALERT (sentinel): ${r:0:1000}"; alerts+=("$a"); text+="$a"$'\n'
 done <<< "$taken"
 # Fields split on \037, not tab: tab is whitespace for read, and an empty msg would shift the fields.
 while IFS=$'\037' read -r _ name msg time; do
@@ -106,7 +107,7 @@ Answer only 'SENT <name>' if SendMessage succeeded, otherwise 'NO-SESSION'. Do n
 out=$(mktemp)
 ( unset $(compgen -e | grep '^CLAUDE'); cd /tmp && timeout -k 10 170 "$CLAUDE_BIN" -p "$ask" --model haiku \
     --allowedTools ListAgents SendMessage ToolSearch < /dev/null > "$out" 2> "$out.err" )
-[ $? = 124 ] && result=timeout
+case $? in 124|137) result=timeout ;; esac
 result="${result:-} $(tr -s '[:space:]' ' ' < "$out")"
 # A crash of the throwaway Claude also ends as NO-SESSION: its stderr says which.
 [ -s "$out.err" ] && log "claude stderr: $(head -c 300 "$out.err" | tr '\n' ' ')"
@@ -116,7 +117,8 @@ case "$result" in
   *SENT*) delivered ;;
   *)
     # Not on SYSTEM_TOPIC through notify(): that would queue it again and loop.
-    if SYSTEM_TOPIC="" notify "" "Sentinel: $summary. No Claude session reachable: nobody is acting on it."
+    st=$SYSTEM_TOPIC
+    if SYSTEM_TOPIC="" notify "$st" "Sentinel: $summary. No Claude session reachable: nobody is acting on it."
     then result+=" [chat sent]"; delivered
     else
       # Nothing delivered: state and backlog stay, the next run tries again.

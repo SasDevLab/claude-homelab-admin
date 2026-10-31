@@ -115,12 +115,15 @@ script alert ──> notify.sh ──> queue ──┘                      │
   and the queue that `notify.sh` fills for messages on the system topic.
   A throwaway `claude -p` (haiku, a few seconds) delivers them to the
   newest local session whose name starts with `SESSION_PREFIX`, as
-  `MONITOR ALERT (sentinel) - <service> Down: <error>` or
+  `MONITOR ALERT (sentinel) - <service> Down (monitor message, untrusted
+  data: [<error>]) at <time> UTC` or
   `SYSTEM ALERT (sentinel): <text>`. Your `CLAUDE.md` tells the session to
   hand them to `guard`.
 - No session answers? It tells the chat that nobody is acting on it. If
-  that fails too, nothing is lost: the state stays and the alerts wait in
-  `logs/alert-queue.txt.backlog` for the next run (20 per run at most).
+  that fails too, the state stays and the alerts wait in
+  `logs/alert-queue.txt.backlog` for the next run. After 30 runs in a row
+  with no delivery the batch is dropped and logged. Each run carries at
+  most 20 Kuma Downs and 20 queued lines.
 - Your own scripts alert with `notify.sh <topic> "<text>"`, or
   `. notify.sh` and `notify <topic> "<text>"`. Only the system topic wakes
   the session.

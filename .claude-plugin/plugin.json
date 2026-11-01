@@ -1,7 +1,7 @@
 {
   "name": "homelab-admin",
   "description": "Claude Code as the administrator of a home server: a coordinator with sub-agents, rules with their reasons, procedure skills, guard hooks and a sentinel that wakes the session on a monitor Down.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "author": {
     "name": "SasDevLab"
   },
@@ -34,6 +34,18 @@
       "title": "Agents for that work",
       "description": "Agent names the delegation reminder suggests.",
       "default": "system, infra-security"
+    },
+    "delegate_calls": {
+      "type": "number",
+      "title": "Calls before a delegation reminder",
+      "description": "Tool calls in a row by the coordinator, without an agent, before (and then every that many) the delegation reminder.",
+      "default": 10
+    },
+    "delegate_images": {
+      "type": "number",
+      "title": "Image reads before a block",
+      "description": "The coordinator's image read that is denied unless an agent ran in between (2 = the second one). 0 turns the block off.",
+      "default": 2
     },
     "model_limit": {
       "type": "string",

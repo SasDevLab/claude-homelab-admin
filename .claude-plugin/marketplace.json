@@ -6,7 +6,7 @@
     {
       "name": "homelab-admin",
       "description": "Claude Code as the administrator of a home server",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "source": "./"
     }
   ]

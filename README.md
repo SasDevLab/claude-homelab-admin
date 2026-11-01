@@ -33,7 +33,7 @@ the rule and its reason, and drops the house's own data.
 | folder | what |
 |---|---|
 | `agents/` | 8 sub-agents: `probe`, `scout` (read-only), `system`, `guard`, `infra-security`, `n8n-agent`, `hass-agent`, `media-storage` |
-| `hooks/` | 3 PreToolUse hooks: `block-pkill-f.py` (a `pkill -f` that would kill its own shell), `delegate-reminder.sh` (the coordinator doing an agent's job), `model-weight-reminder.sh` (a model too heavy for the host) |
+| `hooks/` | 4 PreToolUse hooks: `delegate-counter.py` (tool calls in a row without an agent, and image reads by the coordinator), `block-pkill-f.py` (a `pkill -f` that would kill its own shell), `delegate-reminder.sh` (the coordinator doing an agent's job), `model-weight-reminder.sh` (a model too heavy for the host) |
 | `skills/homelab-init/` | `/homelab-init`: writes your `CLAUDE.md` (the coordinator's rules, each with its reason) from `CLAUDE.template.md`, measuring the machine and asking you the rest |
 | `skills/homelab-notify/` | `/homelab-notify`: shows or switches where alerts go (Telegram, ntfy, Discord, Slack, email, Apprise), `/homelab-notify test` sends one |
 | `skills/` | procedure skills: `homelab-status` (one command for the whole picture, with `status.sh`), `homelab-diagnosis` (the order that finds the real fault), `homelab-new-service` (the pieces before "done"), `homelab-end-session` (lessons filed before `/clear`) |
@@ -73,7 +73,9 @@ installing: `claude --plugin-dir <kit folder>`. To remove it:
 Options, asked at install or set later with `claude plugin configure
 homelab-admin@homelab-admin`: `owner_language` (the agents' messages on the
 owner's channel), `delegate_pattern` and `delegate_agents` (the delegation
-reminder), `model_limit` (the model weight reminder), `status_script` (your
+reminder), `delegate_calls` and `delegate_images` (the call counter
+reminds every N calls; the second image read by the coordinator is denied
+until it launches an agent; 0 turns the image block off), `model_limit` (the model weight reminder), `status_script` (your
 own status script, run by `status.sh` in its place; it must accept
 `--busy` and exit 1 if something is working). Give `status_script` as an
 absolute path to a script that, with every folder above it, is owned by

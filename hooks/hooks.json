@@ -2,6 +2,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/delegate-counter.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash|Write|Edit",
         "hooks": [
           {

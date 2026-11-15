@@ -1,5 +1,17 @@
 # claude-homelab-admin
 
+<p align="center"><img src="assets/demo.gif" width="300" alt="A chat: the owner says 'Heading out. Shut it all down.', Claude turns off the lights, lowers the shutters to 20% and arms the alarm, then promises to fix what breaks overnight and to text only if it must."></p>
+
+**Claude Code as the sysadmin of your home server.** It measures, fixes
+and reports by itself, and texts you only when it needs you.
+
+```
+/plugin marketplace add SasDevLab/claude-homelab-admin
+/plugin install homelab-admin@homelab-admin
+```
+
+Then run `/homelab-admin:homelab-init` in your homelab project. Details in [Install](#install).
+
 Agents, skills and hooks that make Claude Code the **proactive
 administrator** of a home server. One session stays open on the machine:
 it measures, fixes and reports, instead of suggesting. With Claude Code's
